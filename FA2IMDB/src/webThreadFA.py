@@ -32,6 +32,7 @@ def getUser():
     else:
         return "YourUserHERE" , "YourPasswordHERE"
 
+# App virtual login to Filmaffinity.
 def login():
     
     user, password = getUser()
@@ -41,19 +42,26 @@ def login():
     webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookiejar))
 
     webSession.open(urlLogin)
-        
+    
+    # Post data to Filmaffinity login URL.
     dataForm =  {"postback": 1, "rp": "", "user":user, "password":password}
     dataPost = urllib.urlencode(dataForm)
 
     request = urllib2.Request(urlLogin, dataPost)
-    webSession.open(request)  # Our cookiejar automatically receives the cookies
+    webSession.open(request)  # Our cookiejar automatically receives the cookies, after the request
     
+    # Return the cookies and the session authorization. 
     return webSession, cookiejar
 
+# This function return the number of pages to scan and the number of voted movies.
+# Parameters: URL of the user list and the web session.
+# It's not needed to make login, because you can see anyone votes database, but It is funnier :D 
 def getNumberPagesFA(url, webSession):
     
     webResponse = webSession.open(url)
     
+    # Just use the regular expression to find the data.
+    # /!\ If FA web changes you must change this regular expression.
     pattern = re.compile ('Page number <b>1<\/b> of <b>([\d]+)<\/b>[\w\W\s\S]+Number of movies rated: <b>([\d]+)<\/b><\/td><\/tr>')    # Pattern ENGLISH.v1 MUCH BETTER!
     match = pattern.search (webResponse.read())
     
@@ -62,10 +70,12 @@ def getNumberPagesFA(url, webSession):
     
     return numPages, numVotes
 
+# Main function to launch to get all Filmaffinity data.
 def getDataFA(sFilename, oAllData):
     
     global urlVotes    
-
+    
+    # Login to Filmaffinity. Not needed if you already know your user ID.
     webSession, cookiejar = login()
     if len(cookiejar) < 2:
         print ("Login error!: Incorrect FA User or password, please try again.")
@@ -75,28 +85,38 @@ def getDataFA(sFilename, oAllData):
     numPages, numVotes = getNumberPagesFA(urlVotes, webSession)
     print ("Looking for {0} movies in {1} pages." .format (numVotes,numPages))
     
+    # Open or create a file to put all dumped data.
     if sFilename != "":
         if not printFile(sFilename, ""):
             print("Critical ERROR! Impossible to open: " + sFilename)
             return -1
     
+    # At this point we should launch multiple threats to get all votes from different pages.
     t=[]
     i=1
     queueFA=Queue.Queue()
+    
+    # Queue for the output file. We want to avoid collisions and loss of data.
     fileWrite = ThreadFileAdd(sFilename, queueFA)
     if sFilename != "":
         fileWrite.start()
-        
+    
+    # Scan all pages from users vote list looking for the data.
     while i<=int(numPages):
     
-        print ("Getting page: " + str(i) + " from FA website.")
+        print ("Requesting page: " + str(i) + " from FA website.")
         urlVotes= urlVotes_prefix + str(i) + urlVotes_sufix + outOrder_title
         
+        # Enqueue requests. 
         t.append(ThreadGet(urlVotes, webSession, i, queueFA, oAllData))
         t[i-1].start()
         i+=1
+        
+        # Arbitrary value, just to avoid launching hundeds of request at the same time.
+        # Don't be evil.
         if i%5==0:
             time.sleep(5)
+            
     print ("All FilmAffinity thread launched. Waiting for response, it could take a while.")
     
     # Wait for all threads
@@ -108,6 +128,10 @@ def getDataFA(sFilename, oAllData):
         
     # Kill ThreadFileAdd.
     queueFA.put('KILL', True)
+    
+    while not queueFA.empty():
+        pass
+    
     print ("No FilmAffinity threads alive. Go ahead.")
     
     return oAllData
@@ -138,22 +162,27 @@ class ThreadGet(threading.Thread):
                         
         sOut=""
         
+        # text input is HTML code from the votes list. With regular expression we can get the information from all the movies.
         # /!\ If FA web changes you must change this regular expression.
-        pattern = re.compile ('Add to lists.*href="\/en\/(.*?).html">(.*?)<\/a>.*[\n\r\s]*\((\d*)\)[\n\r\W\w]*?<b>([\w\s\W]*?)<\/b>[\n\r\W\w]*?selected >(\d*)')              
+        pattern = re.compile ('Add to lists.*?href="\/en\/(.*?).html">(.*?)<\/a>.*?\((\d*)\).*?<b>(.*?)<\/b>.*?data-user-rating="(\d+)"', re.MULTILINE|re.DOTALL)              
         iterator = pattern.finditer (text)
         
         i=1
         for result in iterator:
             
+            # Get the information from the regular expression match.
             title = self.htmlFilter(result.group(2))
             year = result.group(3)
             director = self.htmlFilter(result.group(4))
             vote = result.group(5)
             movieNumber = result.group(1)
             
+            # print (title + "    " + year +"    "+vote) # Uncoment to enjoy watching the movies appears (to develop)
+            
             self.oAllData.append([title, year, director, vote, movieNumber])
-                    
-            sOut= sOut + title.replace(";", ",") + ";" + year + ";" + director.replace(";",",") + ";" + vote + ";" +  movieNumber +'\r'
+            
+            # New movie entry for CSV file.        
+            sOut= sOut + title.replace(";", ",") + ";" + year + ";" + director.replace(";",",") + ";" + vote + ";" +  movieNumber +'\n'
             i=i+1
         try:
             recodedsOut=sOut.encode('iso-8859-1', 'replace')
@@ -165,11 +194,17 @@ class ThreadGet(threading.Thread):
         except:
             print ("Unexpected error:", sys.exc_info())
             print ("Error queuing: ",recodedsOut)
-            
+    
+    
+    # Important function to escape from HTML special characters (In this case unescape HTML --> regular text).
+    def htmlFilter(self, text):
+        return saxutils.unescape(text)
+    
+    # Class main        
     def run(self):
         
         tryNumber=0 
-        # Definimos arbitrariamente 5 retries, a mejorar en futuros codigos.
+        # Definimos arbitrariamente 5 retries, a mejorar en futuros codigos?
         while tryNumber<=5:
             try:
                 webResponse= self.webSession.open(self.urlVotes)
@@ -183,9 +218,6 @@ class ThreadGet(threading.Thread):
         
         if tryNumber>5:
             print ("Max retries:" + str(self.i) + "retry: " + str(tryNumber))
-        
-    def htmlFilter(self, text):
-        return saxutils.unescape(text)
 
 def printFile(filename, content):
     try:
