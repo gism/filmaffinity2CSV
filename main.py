@@ -98,10 +98,8 @@ def getImdbIdsThread(queue):
             break
         imdbID = imdb.getMovieCodeByAPI(table[index][1], table[index][2])
         if imdbID[0] == "bm0000000":
-            print "uno"
             imdbID = imdb.getMovieCode(table[index][1], table[index][2])
         if imdbID[0] == "bm0000000":
-            print "dos"
             t = re.sub('\([\w\W]*?\)', '', table[index][1]).strip()
             imdbID = imdb.getMovieCode(t, table[index][2])
         if imdbID[0] == "bm0000000" or imdbID[0] == None:
