@@ -204,12 +204,12 @@ if sIn.lower() == "y":
         print "\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies"
         # Write table with format
         table_notVoted = tabulate(imdbNotVoted, headers=['ID fa: '+ fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted', 'movieCountry', 'movieDirector', 'movieCast', 'movieGenre'], tablefmt='orgtbl')
-        fileNameNotFound = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(tLocal.tm_mday) + ".txt"
-        fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
-        fileNotFound.write(imdbNotVoted)
-        fileNotFound.close()
-        print "Movies not found:"
-        print table_notFound 
+        fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(tLocal.tm_mday) + ".txt"
+        fileNotVoted = codecs.open(fileNameNotVoted, "w", "utf_16")
+        fileNotVoted.write(table_notVoted)
+        fileNotVoted.close()
+        print "Movies not voted:"
+        print smart_str(table_notVoted) 
     
 saveTableToCSV()
 
