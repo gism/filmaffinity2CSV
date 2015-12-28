@@ -209,7 +209,7 @@ if sIn.lower() == "y":
         fileNotFound.write(imdbNotVoted)
         fileNotFound.close()
         print "Movies not found:"
-        print table_notFound 
+        print smart_str(table_notFound) 
     
 saveTableToCSV()
 
