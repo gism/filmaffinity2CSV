@@ -5,6 +5,7 @@ import sys
 import re
 import cookielib, urllib, urllib2
 from bs4 import BeautifulSoup
+from django.utils.encoding import smart_str, smart_unicode
 
 WORKERS = 4     # Mutli-Thread workers
 
@@ -361,5 +362,5 @@ class FaFillInfo(threading.Thread):
             
             self.faHelp.faMoviesFilled.append(film)
             
-            print "[FA get all data] ", film[1]
+            print "[FA get all data] ", smart_str(film[1])
             self.__queue.task_done()
