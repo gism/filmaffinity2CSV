@@ -8,6 +8,7 @@ import time
 import imdbHelper
 import threading, Queue
 import re
+from django.utils.encoding import smart_str, smart_unicode
 
 WORKERS = 4
 
@@ -104,7 +105,7 @@ def getImdbIdsThread(queue):
             imdbID = imdb.getMovieCode(t, table[index][2])
         if imdbID[0] == "bm0000000" or imdbID[0] == None:
             imdbNotFound.append([table[index][0], table[index][1], table[index][2]])
-        print "[Match IMDB] tt" + table[index][0], "is: ", table[index][1], " (" + table[index][2] + ")"
+        print "[Match IMDB] tt" + smart_str(table[index][0]), "is: ", smart_str(table[index][1]), " (" + smart_str(table[index][2]) + ")"
         table[index] = [table[index][0],imdbID[0].decode(), table[index][1], table[index][2], table[index][3], table[index][4], table[index][5], table[index][6], table[index][7], table[index][8]]
         if index % 10 == 0:
             print "Task progress: " + str(index) + "/" + str(len(table)) + " (" + str(index*100/float(len(table)))[:5] + "%)" 
