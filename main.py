@@ -173,8 +173,8 @@ if sIn.lower() == "y":
     
 
     # Option A: You want to write each time User and Password:
-    sUser = raw_input('Please enter your FilmAffinity USER:')
-    sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+    sUser = raw_input('Please enter your IMDB USER:')
+    sPassword = raw_input('Please enter your IMDB PASSWORD:')
     imdb.setUser(sUser, sPassword)
     
     # Option B: You want to hardcode your user and pass
