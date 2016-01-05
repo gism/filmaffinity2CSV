@@ -50,42 +50,42 @@ class IMDBhelper:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print "ERROR FOUND: Connection failed at imdbHelper.login()" 
-                   
-        html = webResponse.read()
-        html = unicode(html, 'utf-8')
-        
-        # Get captcha URL
-        pattern = re.compile ('<img src="\/widget\/captcha\?type=([\w\W]+?)"')
-        match = pattern.search (html)
-        if match:
-            captchaURL = self.IMDBurlCaptcha + match.group(1)
-        else:
-            print "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure"
-            sys.exit("Error happens, check log.")
-        
-        print "Type captcha form image: " + captchaURL
-        capcha = raw_input('>')
-        
-        pattern = re.compile ('<input type="hidden" name="([\d\w]+)" value="([\d\w]+)" \/>')
-        match = pattern.finditer (html)
-        
-        if match:
-            for result in match:
-                chsm1 = result.group(1)
-                chsm2 = result.group(2)
+        else:           
+            html = webResponse.read()
+            html = unicode(html, 'utf-8')
             
-            dataForm = {chsm1:chsm2, "login":self.userName, "password":self.userPass, "captcha_answer":capcha}
-        else:
-            print "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure"
-            sys.exit("Error happens, check log.")
+            # Get captcha URL
+            pattern = re.compile ('<img src="\/widget\/captcha\?type=([\w\W]+?)"')
+            match = pattern.search (html)
+            if match:
+                captchaURL = self.IMDBurlCaptcha + match.group(1)
+            else:
+                print "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure"
+                sys.exit("Error happens, check log.")
+            
+            print "Type captcha form image: " + captchaURL
+            capcha = raw_input('>')
+            
+            pattern = re.compile ('<input type="hidden" name="([\d\w]+)" value="([\d\w]+)" \/>')
+            match = pattern.finditer (html)
+            
+            if match:
+                for result in match:
+                    chsm1 = result.group(1)
+                    chsm2 = result.group(2)
                 
-        dataPost = urllib.urlencode(dataForm)
-        request = urllib2.Request("https://secure.imdb.com/register-imdb/login#", dataPost)
-        
-        webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
-                   
-        if not 'id' in [cookie.name for cookie in self.cookiejar]:
-            print ("Login error!: Incorrect IMDB User or password, please try again.")
+                dataForm = {chsm1:chsm2, "login":self.userName, "password":self.userPass, "captcha_answer":capcha}
+            else:
+                print "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure"
+                sys.exit("Error happens, check log.")
+                    
+            dataPost = urllib.urlencode(dataForm)
+            request = urllib2.Request("https://secure.imdb.com/register-imdb/login#", dataPost)
+            
+            webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
+                       
+            if not 'id' in [cookie.name for cookie in self.cookiejar]:
+                print ("Login error!: Incorrect IMDB User or password, please try again.")
     
         
     # returns 1 when login is succeed
