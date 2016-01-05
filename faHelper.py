@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-16 -*-
 
 import threading, Queue
 import sys

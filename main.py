@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-16 -*-
 
 import faHelper
 import sys
