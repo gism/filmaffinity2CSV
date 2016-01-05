@@ -98,10 +98,8 @@ def getImdbIdsThread(queue):
             break
         imdbID = imdb.getMovieCodeByAPI(table[index][1], table[index][2])
         if imdbID[0] == "bm0000000":
-            print "uno"
             imdbID = imdb.getMovieCode(table[index][1], table[index][2])
         if imdbID[0] == "bm0000000":
-            print "dos"
             t = re.sub('\([\w\W]*?\)', '', table[index][1]).strip()
             imdbID = imdb.getMovieCode(t, table[index][2])
         if imdbID[0] == "bm0000000" or imdbID[0] == None:
@@ -206,12 +204,12 @@ if sIn.lower() == "y":
         print "\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies"
         # Write table with format
         table_notVoted = tabulate(imdbNotVoted, headers=['ID fa: '+ fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted', 'movieCountry', 'movieDirector', 'movieCast', 'movieGenre'], tablefmt='orgtbl')
-        fileNameNotFound = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(tLocal.tm_mday) + ".txt"
-        fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
-        fileNotFound.write(imdbNotVoted)
-        fileNotFound.close()
-        print "Movies not found:"
-        print table_notFound 
+        fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(tLocal.tm_mday) + ".txt"
+        fileNotVoted = codecs.open(fileNameNotVoted, "w", "utf_16")
+        fileNotVoted.write(table_notVoted)
+        fileNotVoted.close()
+        print "Movies not voted:"
+        print table_notVoted 
     
 saveTableToCSV()
 
