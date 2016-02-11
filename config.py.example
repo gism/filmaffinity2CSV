@@ -1,0 +1,7 @@
+# change values and rename this file to config.py
+fauser = "fauser"
+fapass = "fapass"
+backuptoimdb = True
+
+imdb_user = "imdb_user"
+imdb_password = "imdb_password"
