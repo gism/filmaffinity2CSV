@@ -138,6 +138,35 @@ class FAhelper:
 
         return numVotes, numPages
 
+    class FAMovieData:
+
+        def __init__(self, movieID, movieTitle, movieYear, movieRate, dayYYYYMMDD):
+            self.movieID = movieID
+            self.movieTitle = movieTitle
+            self.movieYear = movieYear
+            self.movieRate = movieRate
+            self.dayYYYYMMDD = dayYYYYMMDD
+
+        def get_id(self):
+            return self.movieID
+
+        def get_title(self):
+            return self.movieTitle
+
+        def get_year(self):
+            return self.movieYear
+
+        def get_rate(self):
+            return self.movieRate
+
+        def set_extra_info(self, ei):
+            self.extra_info = ei
+
+        def tabulate1(self):
+            # ['ID fa: ' + fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted',
+            #                               'movieCountry', 'movieDirector', 'movieCast', 'movieGenre']
+            return self.get_id(), None, self.get_title(), self.get_year(), self.movieRate, None, self.extra_info.movieCountry, self.extra_info.movieDirector, self.extra_info.movieCast, self.extra_info.movieGenre
+
     def getDumpVotesPage(self, page):
 
         if self.userId == "0":
@@ -163,8 +192,6 @@ class FAhelper:
             rates = dayDiv.findAll('div', attrs={'class': 'user-ratings-movie fa-shadow'})
             for movie in rates:
 
-                movieResult = []
-
                 # Get filmaffinity ID
                 movieID = movie.find('div', attrs={'class': 'movie-card movie-card-0'}).get("data-movie-id")
 
@@ -187,13 +214,20 @@ class FAhelper:
                         "ERROR FOUND: change regular expression at getDumpVotesPage() for movie year. Probably FA changed web page structure")
                     sys.exit("Error happens, check log.")
 
-                movieResult.append(movieID)
-                movieResult.append(movieTitle)
-                movieResult.append(movieYear)
-                movieResult.append(movieRate)
-                movieResult.append(dayYYYYMMDD)
+                movieResult = self.FAMovieData(movieID=movieID, movieTitle=movieTitle, movieYear=movieYear,
+                                               movieRate=movieRate, dayYYYYMMDD=dayYYYYMMDD)
                 # print movieID, movieTitle, movieYear, movieRate, dayYYYYMMDD
                 self.faMovies.append(movieResult)
+
+    class FaMovieExtraInfo:
+
+        def __init__(self, movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre):
+            self.movieTitle = movieTitle
+            self.movieYear = movieYear
+            self.movieCountry = movieCountry
+            self.movieDirector = movieDirector
+            self.movieCast = movieCast
+            self.movieGenre = movieGenre
 
     def getMovieInfoById(self, movieID):
 
@@ -294,7 +328,7 @@ class FAhelper:
                     movieID))
             sys.exit("Error happens, check log.")
 
-        return movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
+        return self.FaMovieExtraInfo(movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre)
 
     def getMoviesDumped(self):
         return self.faMovies
@@ -374,13 +408,10 @@ class FaFillInfo(threading.Thread):
                 break  # reached end of queue
 
             extraInfo = self.faHelp.getMovieInfoById(
-                film[0])  # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
-            film.append(extraInfo[2])
-            film.append(extraInfo[3])
-            film.append(extraInfo[4])
-            film.append(extraInfo[5])
+                film.movieID)  # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
+            film.set_extra_info(extraInfo)
 
             self.faHelp.faMoviesFilled.append(film)
 
-            print("[FA get all data] ", film[1])
+            print("[FA get all data] ", film.get_title())
             self.__queue.task_done()
