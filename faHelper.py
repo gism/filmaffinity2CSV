@@ -162,10 +162,10 @@ class FAhelper:
         def set_extra_info(self, ei):
             self.extra_info = ei
 
+        colum_names = ("ID", "Title", "Year", "Vote", "Voted", "Country", "Director", "Cast", "Genre")
+
         def tabulate1(self):
-            # ['ID fa: ' + fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted',
-            #                               'movieCountry', 'movieDirector', 'movieCast', 'movieGenre']
-            return self.get_id(), None, self.get_title(), self.get_year(), self.movieRate, None, self.extra_info.movieCountry, self.extra_info.movieDirector, self.extra_info.movieCast, self.extra_info.movieGenre
+            return self.get_id(), self.get_title(), self.get_year(), self.movieRate, None, self.extra_info.movieCountry, self.extra_info.movieDirector, self.extra_info.movieCast, self.extra_info.movieGenre
 
     def getDumpVotesPage(self, page):
 

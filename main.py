@@ -69,31 +69,27 @@ table = fa.getMoviesDumped()
 
 def saveTableToCSV():
     # Save movie list as CSV
-    fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(tLocal.tm_mday) + ".csv"
+    fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+        tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".csv"
 
-    file = codecs.open(fileName, "w", "utf_16")
-    file.write("ID fa:" + fa.getUserID() + "; ID imdb; Title; Year; Vote; Voted; Country; Director; Cast; Genre\n")
-
-    for movie in table:
-        line = ""
-        for entry in movie.tabulate1():
-            # line = line + entry.encode('utf-8') + ";"
-            if entry is None:
-                entry = ''
-            line = line + entry.replace(";", ",") + ";"
-        line = line + "\n"
-        file.write(line)
-    file.close()
+    #with codecs.open(fileName, "w", "utf_16") as file1:
+    with open(fileName, "w") as file1:
+        writer = None
+        for movie in table:
+            assert isinstance(movie, MovieMatch)
+            if writer is None:
+                import unicodecsv as csv
+                writer = csv.writer(file1, encoding='utf-8')
+                writer.writerow(movie.report_headers())
+            writer.writerow(movie.tabulate1())
 
     tabulate_table = []
     for table_match in table:
+        assert isinstance(movie, MovieMatch)
         tabulate_table.append(table_match.tabulate1())
-    table_beautiful = tabulate(tabulate_table,
-                                   headers=['ID fa: ' + fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted',
-                                            'movieCountry', 'movieDirector', 'movieCast', 'movieGenre'],
-                                   tablefmt='orgtbl')
+    table_beautiful = tabulate(tabulate_table, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
     fileNameBeauty = "FA-moviesBeauty" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-        tLocal.tm_mday) + ".txt"
+        tLocal.tm_mday) + '-fauserid' + fa.getUserID() + ".txt"
     fileBeauty = codecs.open(fileNameBeauty, "w", "utf_16")
     fileBeauty.write(table_beautiful)
     fileBeauty.close()
@@ -101,6 +97,7 @@ def saveTableToCSV():
 
 class MovieMatch:
     def __init__(self, fa, imdb):
+        assert isinstance(fa, faHelper.FAhelper.FAMovieData)
         self.__fa = fa
         self.__imdb = imdb
 
@@ -115,6 +112,12 @@ class MovieMatch:
         a = self.__fa.tabulate1()
         b = list(a)
         b.insert(1, self.__imdb.get_code())
+        return b
+
+    @staticmethod
+    def report_headers():
+        b = list(faHelper.FAhelper.FAMovieData.colum_names)
+        b.insert(1, "ID imdb")
         return b
 
 
@@ -157,7 +160,7 @@ def voteImdbThread(queue):
         except:
             e = sys.exc_info()
             imdbNotVoted.append(movie_match)
-            print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa.get_title())
+            print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
         if index % 10 == 0:
             print("Task progress: " + str(index) + "/" + str(len(table)) + " (" + str(index * 100 / float(len(table)))[
                                                                                   :5] + "%)")
