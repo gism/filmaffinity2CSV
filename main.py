@@ -72,7 +72,7 @@ def saveTableToCSV():
     fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
         tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".csv"
 
-    #with codecs.open(fileName, "w", "utf_16") as file1:
+    # with codecs.open(fileName, "w", "utf_16") as file1:
     with open(fileName, "w") as file1:
         writer = None
         for movie in table:
@@ -212,13 +212,13 @@ if backuptoimdb:
         # Write table with format
         imdbNotFound_tabulated = []
         for not_found_movie in imdbNotFound:
+            assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
             imdbNotFound_tabulated.append(not_found_movie.tabulate1())
         table_notFound = tabulate(imdbNotFound_tabulated,
-                                  headers=['ID fa: ' + fa.getUserID(), 'ID imdb', 'Title', 'Year', 'Vote', 'Voted',
-                                           'movieCountry', 'movieDirector', 'movieCast', 'movieGenre'],
+                                  headers=faHelper.FAhelper.FAMovieData.colum_names,
                                   tablefmt='orgtbl')
         fileNameNotFound = "FilmsNotFoundAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-            tLocal.tm_mday) + ".txt"
+            tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
         fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
         fileNotFound.write(table_notFound)
         fileNotFound.close()
