@@ -56,18 +56,11 @@ print("Your FA ID is: ", fa.getUserID())
 
 # Download  
 fa.getDumpAllVotes()
-table = fa.getMoviesDumped()
+fatable = fa.getMoviesDumped()
+match_result_table = []
 
 
-#     f = open('backup_file.csv', 'r')
-#     f.readline()    # pop header line
-#     
-#     table = []
-#     for line in f:
-#         movie = line.split(";")
-#         table.append(movie)
-
-def saveTableToCSV():
+def saveTableToCsv1():
     # Save movie list as CSV
     fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
         tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".csv"
@@ -75,7 +68,7 @@ def saveTableToCSV():
     # with codecs.open(fileName, "w", "utf_16") as file1:
     with open(fileName, "w") as file1:
         writer = None
-        for movie in table:
+        for movie in match_result_table:
             assert isinstance(movie, MovieMatch)
             if writer is None:
                 import unicodecsv as csv
@@ -83,9 +76,11 @@ def saveTableToCSV():
                 writer.writerow(movie.report_headers())
             writer.writerow(movie.tabulate1())
 
+
+def saveTableBeauty():
     tabulate_table = []
-    for table_match in table:
-        assert isinstance(movie, MovieMatch)
+    for table_match in match_result_table:
+        assert isinstance(table_match, MovieMatch)
         tabulate_table.append(table_match.tabulate1())
     table_beautiful = tabulate(tabulate_table, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
     fileNameBeauty = "FA-moviesBeauty" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
@@ -93,6 +88,11 @@ def saveTableToCSV():
     fileBeauty = codecs.open(fileNameBeauty, "w", "utf_16")
     fileBeauty.write(table_beautiful)
     fileBeauty.close()
+
+
+def saveTableToFiles():
+    saveTableToCsv1()
+    saveTableBeauty()
 
 
 class MovieMatch:
@@ -127,7 +127,7 @@ def getImdbIdsThread(queue):
         if index is None:
             queue.task_done()
             break
-        current_fa_movie = table[index]
+        current_fa_movie = fatable[index]
         imdbID = imdb.getMovieCodeByAPI(current_fa_movie.get_title(), current_fa_movie.get_year())
         if imdbID.is_bad_match():
             imdbID = imdb.getMovieCode(current_fa_movie.get_title(), current_fa_movie.get_year())
@@ -140,10 +140,11 @@ def getImdbIdsThread(queue):
               " (" + current_fa_movie.get_year() + ")")
 
         # [current_fa_movie[0], imdbID[0].decode(), current_fa_movie[1], current_fa_movie[2], current_fa_movie[3], current_fa_movie[4], current_fa_movie[5], current_fa_movie[6], current_fa_movie[7], current_fa_movie[8]]
-        table[index] = MovieMatch(current_fa_movie, imdbID)
+        match_result_table.append(MovieMatch(current_fa_movie, imdbID))
         if index % 10 == 0:
-            print("Task progress: " + str(index) + "/" + str(len(table)) + " (" + str(index * 100 / float(len(table)))[
-                                                                                  :5] + "%)")
+            print("Task progress: " + str(index) + "/" + str(len(fatable)) + " (" + str(
+                index * 100 / float(len(fatable)))[
+                                                                                    :5] + "%)")
         queue.task_done()
 
 
@@ -153,7 +154,8 @@ def voteImdbThread(queue):
         if index is None:
             queue.task_done()
             break
-        movie_match = table[index]
+        movie_match = match_result_table[index]
+        assert isinstance(movie_match, MovieMatch)
         try:
             if not movie_match.imdb().is_bad_match():
                 imdb.voteMovie(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
@@ -162,8 +164,8 @@ def voteImdbThread(queue):
             imdbNotVoted.append(movie_match)
             print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
         if index % 10 == 0:
-            print("Task progress: " + str(index) + "/" + str(len(table)) + " (" + str(index * 100 / float(len(table)))[
-                                                                                  :5] + "%)")
+            print("Task progress: " + str(index) + "/" + str(len(match_result_table)) + " (" + str(
+                index * 100 / float(len(match_result_table)))[:5] + "%)")
         queue.task_done()
 
 
@@ -198,7 +200,7 @@ if backuptoimdb:
         threads.append(worker)
 
     # Enqueue all movies in queue
-    for i in range(len(table)):
+    for i in range(len(fatable)):
         q.put(i)
 
     for i in range(WORKERS):
@@ -254,7 +256,7 @@ if backuptoimdb:
         voter.setDaemon(True)
         voter.start()
 
-    for i in range(len(table)):
+    for i in range(len(match_result_table)):
         qVotes.put(i)
 
     for i in range(WORKERS):
@@ -277,7 +279,7 @@ if backuptoimdb:
         print("Movies not voted:")
         print(table_notVoted)
 
-saveTableToCSV()
+saveTableToFiles()
 
 print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 print("\r\nDONE")
