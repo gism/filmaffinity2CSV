@@ -215,7 +215,7 @@ if backuptoimdb:
             assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
             imdbNotFound_tabulated.append(not_found_movie.tabulate1())
         table_notFound = tabulate(imdbNotFound_tabulated,
-                                  headers=faHelper.FAhelper.FAMovieData.colum_names,
+                                  headers=list(faHelper.FAhelper.FAMovieData.colum_names),
                                   tablefmt='orgtbl')
         fileNameNotFound = "FilmsNotFoundAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
             tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
