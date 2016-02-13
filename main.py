@@ -265,15 +265,13 @@ if backuptoimdb:
     qVotes.join()
 
     if len(imdbNotVoted) > 0:
+        assert isinstance(imdbNotVoted[0], MovieMatch)
         print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
               ' (fa: ' + fa.getUserID() + ')')
         # Write table with format
-        table_notVoted = tabulate(imdbNotVoted,
-                                  headers=['ID ', 'ID imdb', 'Title', 'Year', 'Vote', 'Voted',
-                                           'movieCountry', 'movieDirector', 'movieCast', 'movieGenre'],
-                                  tablefmt='orgtbl')
+        table_notVoted = tabulate(imdbNotVoted, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
         fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-            tLocal.tm_mday) + '-fauser' + fa.getUserID() +".txt"
+            tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
         fileNotVoted = codecs.open(fileNameNotVoted, "w", "utf_16")
         fileNotVoted.write(table_notVoted)
         fileNotVoted.close()
