@@ -9,6 +9,22 @@ import imdbHelper
 import threading, Queue
 import re
 
+
+class CountingQueue(Queue.Queue):
+    def __init__(self, maxsize):
+        #Queue.Queue.__init__(**locals())
+        Queue.Queue.__init__(self, maxsize)
+        self.__mycount = 0
+
+    def get(self):
+        ret = Queue.Queue.get(self)
+        self.__mycount += 1
+        return ret
+
+    def get_count(self):
+        return self.__mycount
+
+
 WORKERS = 4
 
 start_time = time.time()
@@ -150,11 +166,10 @@ def getImdbIdsThread(queue):
 
 def voteImdbThread(queue):
     while True:
-        index = queue.get()
-        if index is None:
+        movie_match = queue.get()
+        if movie_match is None:
             queue.task_done()
             break
-        movie_match = match_result_table[index]
         assert isinstance(movie_match, MovieMatch)
         try:
             if not movie_match.imdb().is_bad_match():
@@ -163,6 +178,7 @@ def voteImdbThread(queue):
             e = sys.exc_info()
             imdbNotVoted.append(movie_match)
             print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
+        index = queue.get_count()
         if index % 10 == 0:
             print("Task progress: " + str(index) + "/" + str(len(match_result_table)) + " (" + str(
                 index * 100 / float(len(match_result_table)))[:5] + "%)")
@@ -249,14 +265,14 @@ if backuptoimdb:
     while not imdb.loginSucceed():
         imdb.login()
     print("Login succeed")
-    qVotes = Queue.Queue(maxsize=0)
+    qVotes = CountingQueue(maxsize=0)
 
     for i in range(WORKERS):
         voter = threading.Thread(target=voteImdbThread, args=(qVotes,))
         voter.setDaemon(True)
         voter.start()
 
-    for i in range(len(match_result_table)):
+    for i in match_result_table:
         qVotes.put(i)
 
     for i in range(WORKERS):
@@ -269,7 +285,10 @@ if backuptoimdb:
         print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
               ' (fa: ' + fa.getUserID() + ')')
         # Write table with format
-        table_notVoted = tabulate(imdbNotVoted, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
+        try:
+            table_notVoted = tabulate(imdbNotVoted, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
+        except:
+            raise
         fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
             tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
         fileNotVoted = codecs.open(fileNameNotVoted, "w", "utf_16")
