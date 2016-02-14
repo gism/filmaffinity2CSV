@@ -9,8 +9,6 @@ import imdbHelper
 import threading, Queue
 import re
 
-tLocal = time.localtime()
-
 
 class CountingQueue(Queue.Queue):
     def __init__(self, maxsize=0):
@@ -35,6 +33,29 @@ class CountingQueue(Queue.Queue):
         return self.__total
 
 
+def createTrheadedQueue(target, args, elements):
+    WORKERS = 4
+    q = CountingQueue()
+    # Start multi-thread. One thread for each worker, all use same queue.
+    threads = []
+    newargs = (q,) + args
+    for i in range(WORKERS):
+        worker = threading.Thread(target=target, args=newargs)
+        worker.setDaemon(True)
+        worker.start()
+        threads.append(worker)
+
+    # Enqueue all movies in queue
+    for i in elements:
+        q.put(i)
+
+    for i in range(WORKERS):
+        q.put(None)  # add end-of-queue markers
+
+    # Wait threads and workers to finish
+    q.join()
+
+
 class FAMovieList:
     def __init__(self):
         self.__imdbNotFound = []
@@ -49,7 +70,7 @@ class FAMovieList:
         assert isinstance(element, faHelper.FAhelper.FAMovieData)
         self.__imdbNotFound.append(element)
 
-    def saveAndPrint(self, postfix):
+    def saveReport(self, prefix, postfix):
         imdbNotFound_tabulated = []
         for not_found_movie in self.__imdbNotFound:
             assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
@@ -57,13 +78,14 @@ class FAMovieList:
         table_notFound = tabulate(imdbNotFound_tabulated,
                                   headers=list(faHelper.FAhelper.FAMovieData.colum_names),
                                   tablefmt='orgtbl')
-        fileNameNotFound = "FilmsNotFoundAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+
+        tLocal = time.localtime()
+        fileNameNotFound = prefix + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
             tLocal.tm_mday) + postfix + ".txt"
         fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
         fileNotFound.write(table_notFound)
         fileNotFound.close()
-        print("Movies not found:")
-        print(table_notFound)
+        return table_notFound
 
 
 class MovieMatch:
@@ -78,7 +100,7 @@ class MovieMatch:
     def imdb(self):
         return self.__imdb
 
-    def tabulate1(self):
+    def report(self):
         # "ID fa:" + fa.getUserID() + "; ID imdb; Title; Year; Vote; Voted; Country; Director; Cast; Genre\n"
         a = self.__fa.tabulate1()
         b = list(a)
@@ -106,9 +128,10 @@ class MatchedMoviesList:
     def elements(self):
         return self.__table
 
-    def __saveTableToCsv1(self, postfix):
+    def __saveTableToCsv1(self, csvprefix, postfix):
         # Save movie list as CSV
-        fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+        tLocal = time.localtime()
+        fileName = csvprefix + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
             tLocal.tm_mday) + postfix + ".csv"
 
         # with codecs.open(fileName, "w", "utf_16") as file1:
@@ -120,52 +143,43 @@ class MatchedMoviesList:
                     import unicodecsv as csv
                     writer = csv.writer(file1, encoding='utf-8')
                     writer.writerow(movie.report_headers())
-                writer.writerow(movie.tabulate1())
+                writer.writerow(movie.report())
 
-    def __saveTableBeauty(self, postfix):
+    def __build_tab_report(self):
         tabulate_table = []
         for table_match in self.__table:
             assert isinstance(table_match, MovieMatch)
-            tabulate_table.append(table_match.tabulate1())
+            tabulate_table.append(table_match.report())
         table_beautiful = tabulate(tabulate_table, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
-        fileNameBeauty = "FA-moviesBeauty" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+        return table_beautiful
+
+    def __saveTableBeauty(self, beautyprefix, postfix):
+        table_beautiful = self.__build_tab_report()
+        tLocal = time.localtime()
+        fileNameBeauty = beautyprefix + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
             tLocal.tm_mday) + postfix + ".txt"
         fileBeauty = codecs.open(fileNameBeauty, "w", "utf_16")
         fileBeauty.write(table_beautiful)
         fileBeauty.close()
+        return table_beautiful
 
-    def saveTableToFiles(self, postfix):
-        self.__saveTableToCsv1(postfix)
-        self.__saveTableBeauty(postfix)
+    def saveCsvReportAndBeauty(self, csvprefix, beautyprefix, postfix):
+        self.__saveTableToCsv1(csvprefix, postfix)
+        self.__saveTableBeauty(beautyprefix, postfix)
 
-    def jojojo(self, postfix):
-        imdbNotVoted = self.__table
-        assert isinstance(imdbNotVoted[0], MovieMatch)
-        blo = []
-        for a in imdbNotVoted:
-            assert isinstance(a, MovieMatch)
-            blo.append(a.tabulate1())
-        # Write table with format
-        try:
-            table_notVoted = tabulate(blo, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
-        except:
-            raise
-        fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-            tLocal.tm_mday) + postfix + ".txt"
-        fileNotVoted = codecs.open(fileNameNotVoted, "w", "utf_16")
-        fileNotVoted.write(table_notVoted)
-        fileNotVoted.close()
-        print("Movies not voted:")
-        print(table_notVoted)
+    def saveReportBeauty(self, prefix, postfix):
+        table_notVoted = self.__saveTableBeauty(prefix, postfix)
+        return table_notVoted
 
 
-def getImdbIdsThread(queue, imdb, imdbNotFound, match_result_table_2):
+def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
     assert isinstance(queue, CountingQueue)
     while True:
         current_fa_movie = queue.get()
         if current_fa_movie is None:
             queue.task_done()
             break
+        assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
         imdbID = imdb.getMovieCodeByAPI(current_fa_movie.get_title(), current_fa_movie.get_year())
         if imdbID.is_bad_match():
             imdbID = imdb.getMovieCode(current_fa_movie.get_title(), current_fa_movie.get_year())
@@ -177,8 +191,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_result_table_2):
         print("[Match IMDB] tt" + current_fa_movie.get_id(), "is: ", current_fa_movie.get_title(),
               " (" + current_fa_movie.get_year() + ")")
 
-        # [current_fa_movie[0], imdbID[0].decode(), current_fa_movie[1], current_fa_movie[2], current_fa_movie[3], current_fa_movie[4], current_fa_movie[5], current_fa_movie[6], current_fa_movie[7], current_fa_movie[8]]
-        match_result_table_2.append(MovieMatch(current_fa_movie, imdbID))
+        match_results.append(MovieMatch(current_fa_movie, imdbID))
         if queue.get_count() % 10 == 0:
             print("Task progress: " + str(queue.get_count()) + "/" + str(queue.get_total()) + " (" + str(
                 queue.get_count() * 100 / float(queue.get_total()))[:5] + "%)")
@@ -207,8 +220,6 @@ def voteImdbThread(queue, imdb, imdbNotVoted):
 
 
 def main():
-    WORKERS = 4
-
     start_time = time.time()
     logo = '''
     `7MM"""YMM  db               `7MMF'`7MMM.     ,MMF'`7MM"""Yb. `7MM"""Yp,
@@ -233,13 +244,6 @@ def main():
         sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
 
     fa.setUser(sUser, sPassword)
-
-    # Option B: You want to hardcode your user and pass
-    #    fa.setUser("Your USER", "Your PASSWORD")
-
-    # Option C: Hardcode your User ID
-    # fa.setUserID(123456)
-
     fa.login()
     if fa.loginSucceed():
         print("Login succeed")
@@ -249,12 +253,9 @@ def main():
 
     print("Your FA ID is: ", fa.getUserID())
 
-    # if 0: ONLY for dev
-
-    # Download
     fa.getDumpAllVotes()
-    fatable = fa.getMoviesDumped()
-    match_result_table_2 = MatchedMoviesList()
+    fa_movies = fa.getMoviesDumped()
+    match_results = MatchedMoviesList()
 
     try:
         import config
@@ -272,33 +273,20 @@ def main():
     if backuptoimdb:
         imdb = imdbHelper.IMDBhelper()
 
-        # Cola con las pelis para obterner el codigo de pelicula en IMDB
-        q = CountingQueue()
         # Array para las peliculas que presenten peliculas
         imdbNotFound = FAMovieList()
         imdbNotVoted = MatchedMoviesList()
 
-        # Start multi-thread. One thread for each worker, all use same queue.
-        threads = []
-        for i in range(WORKERS):
-            worker = threading.Thread(target=getImdbIdsThread, args=(q, imdb, imdbNotFound, match_result_table_2))
-            worker.setDaemon(True)
-            worker.start()
-            threads.append(worker)
-
-        # Enqueue all movies in queue
-        for i in fatable:
-            q.put(i)
-
-        for i in range(WORKERS):
-            q.put(None)  # add end-of-queue markers
-
-        # Wait threads and workers to finish
-        q.join()
+        # Cola con las pelis para obterner el codigo de pelicula en IMDB
+        print('About to get imdb ids...')
+        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
+                            elements=fa_movies)
 
         if not imdbNotFound.empty():
             print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-            imdbNotFound.saveAndPrint('-fauser' + fa.getUserID())
+            table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", '-fauser' + fa.getUserID())
+            print("Movies not found:")
+            print(table_notFound)
 
         print("\r\nAll movies from FA matched with IMDB database.\r\n")
         print("--- Total runtime %s seconds ---" % (time.time() - start_time))
@@ -314,35 +302,22 @@ def main():
             sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
         imdb.setUser(sUser, sPassword)
 
-        # Option B: You want to hardcode your user and pass
-        # imdb.setUser("user@gmail.com", "imdb_pass")
-
         # Login to IMDB
         imdb.login()
         while not imdb.loginSucceed():
             imdb.login()
         print("Login succeed")
-        qVotes = CountingQueue(maxsize=0)
-
-        for i in range(WORKERS):
-            voter = threading.Thread(target=voteImdbThread, args=(qVotes, imdb, imdbNotVoted))
-            voter.setDaemon(True)
-            voter.start()
-
-        for i in match_result_table_2.elements():
-            qVotes.put(i)
-
-        for i in range(WORKERS):
-            q.put(None)  # add end-of-queue markers
-
-        qVotes.join()
+        createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
+                            elements=match_results.elements())
 
         if len(imdbNotVoted) > 0:
             print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
                   ' (fa: ' + fa.getUserID() + ')')
-            imdbNotVoted.jojojo('-fauser' + fa.getUserID())
+            table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa.getUserID())
+            print("Movies not voted:")
+            print(table_notVoted)
 
-    match_result_table_2.saveTableToFiles('-fauserid' + fa.getUserID())
+    match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
     print("\r\nDONE")
