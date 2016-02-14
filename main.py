@@ -23,7 +23,7 @@ class CountingQueue(Queue.Queue):
         return ret
 
     def put(self, i):
-        Queue.Queue.get(self, i)
+        Queue.Queue.put(self, i)
         self.__total += 1
 
     def get_count(self):
@@ -318,9 +318,13 @@ if backuptoimdb:
         assert isinstance(imdbNotVoted[0], MovieMatch)
         print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
               ' (fa: ' + fa.getUserID() + ')')
+        blo = []
+        for a in imdbNotVoted:
+            assert isinstance(a, MovieMatch)
+            blo.append(a.tabulate1())
         # Write table with format
         try:
-            table_notVoted = tabulate(imdbNotVoted, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
+            table_notVoted = tabulate(blo, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
         except:
             raise
         fileNameNotVoted = "FilmsNotVotedAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
@@ -331,7 +335,7 @@ if backuptoimdb:
         print("Movies not voted:")
         print(table_notVoted)
 
-saveTableToFiles()
+match_result_table_2.saveTableToFiles()
 
 print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 print("\r\nDONE")
