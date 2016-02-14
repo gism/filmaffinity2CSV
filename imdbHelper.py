@@ -111,7 +111,7 @@ class IMDBhelper:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdb.getMovieCode() - " + mTitle + "(" + mYear + ")")
-            return self.ImdbFoundMovie("bm0000000", "Bad matches", 0, result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
+            return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
 
         urlAdrRed = webResponse.geturl()
         urlHTML = webResponse.read()
@@ -180,8 +180,7 @@ class IMDBhelper:
                 findList.append(self.ImdbFoundMovie(code=akaMovieCode, title=akaTitle, year=akaYear, ratio=titleRatio))
 
             # Get the best match
-            bestResult = self.ImdbFoundMovie(code='nm0000000', title='No match', year='0', ratio=0,
-                                             result=self.ImdbFoundMovie.RESULT_NO_MATCH)
+            bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.RESULT_NO_MATCH)
 
             for movie in findList:
                 if abs(int(movie.get_year()) - int(mYear)) <= 1:
@@ -191,14 +190,22 @@ class IMDBhelper:
             if bestResult.get_ratio() > 0.5:
                 return bestResult
             else:
-                return self.ImdbFoundMovie("bm0000000", "Bad matches", 0, result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
+                return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
 
     class ImdbFoundMovie:
         RESULT_MATCH = 'match'
         RESULT_NO_MATCH = 'no_match'
         RESULT_BAD_MATCH = 'bad_match'
 
-        def __init__(self, code, title, year, ratio=None, result=RESULT_MATCH):
+        def __init__(self, code=None, title=None, year=None, ratio=None, result=RESULT_MATCH):
+            if result != self.RESULT_MATCH:
+                if code is not None:
+                    pass
+                assert code is None
+                assert title is None
+                assert year is None
+                if result == self.RESULT_BAD_MATCH:
+                    assert ratio == None
             self.code = code
             self.title = title
             self.year = year
@@ -243,7 +250,7 @@ class IMDBhelper:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
-            return self.ImdbFoundMovie("bm0000000", "Bad matches", 0)
+            return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
 
         urlHTML = webResponse.read()
         # urlHTML = unicode(urlHTML, 'utf-8')
@@ -272,8 +279,7 @@ class IMDBhelper:
                                                 ratio=titleRatio))
 
         # Get the best match
-        bestResult = self.ImdbFoundMovie(code='nm0000000', title='No match', year='0', ratio=0,
-                                         result=self.ImdbFoundMovie.RESULT_NO_MATCH)
+        bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.RESULT_NO_MATCH)
         for movie in findList:
             if abs(int(movie.get_year()) - int(mYear)) <= 1:
                 if bestResult.get_ratio() < movie.get_ratio():
@@ -289,11 +295,10 @@ class IMDBhelper:
                     return findList[0]
                 else:
                     # No result.
-                    return self.ImdbFoundMovie("bm0000000", "Bad matches", 0,
-                                               result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
+                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
             else:
                 # No result.
-                return self.ImdbFoundMovie("bm0000000", "Bad matches", 0, result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
+                return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
 
     def voteMovie(self, mCode, mVote):
         urlAdr = "http://www.imdb.com/title/" + mCode + "/vote"
