@@ -92,6 +92,7 @@ class MovieMatch:
     def __init__(self, fa, imdb):
         assert isinstance(fa, faHelper.FAhelper.FAMovieData)
         self.__fa = fa
+        assert isinstance(imdb, imdbHelper.IMDBhelper.ImdbFoundMovie)
         self.__imdb = imdb
 
     def fa(self):
@@ -103,18 +104,20 @@ class MovieMatch:
     def report(self):
         fa_fields = self.__fa.tabulate1()
         fa_fields_in_list = list(fa_fields)
+        fa_fields_in_list.insert(3, self.__imdb.get_year())
+        fa_fields_in_list.insert(2, self.__imdb.get_title())
         fa_fields_in_list.insert(1, self.__imdb.get_ratio())
-        fa_fields_in_list.insert(1, self.__imdb.get_year())
-        fa_fields_in_list.insert(1, self.__imdb.get_title())
+        fa_fields_in_list.insert(1, self.__imdb.get_result())
         fa_fields_in_list.insert(1, self.__imdb.get_code())
         return fa_fields_in_list
 
     @staticmethod
     def report_headers():
         b = list(faHelper.FAhelper.FAMovieData.colum_names)
+        b.insert(3, "imdb year")
+        b.insert(2, "imdb title")
         b.insert(1, "imdb ratio")
-        b.insert(1, "imdb year")
-        b.insert(1, "imdb title")
+        b.insert(1, "imdb match")
         b.insert(1, "imdb code")
         return b
 

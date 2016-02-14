@@ -206,27 +206,30 @@ class IMDBhelper:
                 assert year is None
                 if result == self.RESULT_BAD_MATCH:
                     assert ratio == None
-            self.code = code
-            self.title = title
-            self.year = year
-            self.ratio = ratio
+            self.__code = code
+            self.__title = title
+            self.__year = year
+            self.__ratio = ratio
             self.__result = result
             pass
 
+        def get_result(self):
+            return self.__result
+
         def get_code(self):
-            return self.code
+            return self.__code
 
         def get_code_decoded(self):
-            return self.code.decode()
+            return self.__code.decode()
 
         def get_title(self):
-            return self.title
+            return self.__title
 
         def get_year(self):
-            return self.year
+            return self.__year
 
         def get_ratio(self):
-            return self.ratio
+            return self.__ratio
 
         def is_no_match(self):
             return self.__result == self.RESULT_NO_MATCH
