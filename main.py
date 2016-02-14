@@ -101,16 +101,21 @@ class MovieMatch:
         return self.__imdb
 
     def report(self):
-        # "ID fa:" + fa.getUserID() + "; ID imdb; Title; Year; Vote; Voted; Country; Director; Cast; Genre\n"
-        a = self.__fa.tabulate1()
-        b = list(a)
-        b.insert(1, self.__imdb.get_code())
-        return b
+        fa_fields = self.__fa.tabulate1()
+        fa_fields_in_list = list(fa_fields)
+        fa_fields_in_list.insert(1, self.__imdb.get_ratio())
+        fa_fields_in_list.insert(1, self.__imdb.get_year())
+        fa_fields_in_list.insert(1, self.__imdb.get_title())
+        fa_fields_in_list.insert(1, self.__imdb.get_code())
+        return fa_fields_in_list
 
     @staticmethod
     def report_headers():
         b = list(faHelper.FAhelper.FAMovieData.colum_names)
-        b.insert(1, "ID imdb")
+        b.insert(1, "imdb ratio")
+        b.insert(1, "imdb year")
+        b.insert(1, "imdb title")
+        b.insert(1, "imdb code")
         return b
 
 
@@ -278,7 +283,7 @@ def main():
         imdbNotVoted = MatchedMoviesList()
 
         # Cola con las pelis para obterner el codigo de pelicula en IMDB
-        print('About to get imdb ids...')
+        print('\nAbout to get imdb ids...\n')
         createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
                             elements=fa_movies)
 
