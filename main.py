@@ -12,17 +12,126 @@ import re
 
 class CountingQueue(Queue.Queue):
     def __init__(self, maxsize):
-        #Queue.Queue.__init__(**locals())
+        # Queue.Queue.__init__(**locals())
         Queue.Queue.__init__(self, maxsize)
         self.__mycount = 0
+        self.__total = 0
 
     def get(self):
         ret = Queue.Queue.get(self)
         self.__mycount += 1
         return ret
 
+    def put(self, i):
+        Queue.Queue.get(self, i)
+        self.__total += 1
+
     def get_count(self):
         return self.__mycount
+
+    def get_total(self):
+        return self.__total
+
+
+class FAMovieList:
+    def __init__(self):
+        self.__imdbNotFound = []
+
+    def __len__(self):
+        return len(self.__imdbNotFound)
+
+    def empty(self):
+        return len(self.__imdbNotFound) < 1
+
+    def append(self, element):
+        assert isinstance(element, faHelper.FAhelper.FAMovieData)
+        self.__imdbNotFound.append(element)
+
+    def saveAndPrint(self):
+        imdbNotFound_tabulated = []
+        for not_found_movie in self.__imdbNotFound:
+            assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
+            imdbNotFound_tabulated.append(not_found_movie.tabulate1())
+        table_notFound = tabulate(imdbNotFound_tabulated,
+                                  headers=list(faHelper.FAhelper.FAMovieData.colum_names),
+                                  tablefmt='orgtbl')
+        fileNameNotFound = "FilmsNotFoundAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+            tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
+        fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
+        fileNotFound.write(table_notFound)
+        fileNotFound.close()
+        print("Movies not found:")
+        print(table_notFound)
+
+
+class MovieMatch:
+    def __init__(self, fa, imdb):
+        assert isinstance(fa, faHelper.FAhelper.FAMovieData)
+        self.__fa = fa
+        self.__imdb = imdb
+
+    def fa(self):
+        return self.__fa
+
+    def imdb(self):
+        return self.__imdb
+
+    def tabulate1(self):
+        # "ID fa:" + fa.getUserID() + "; ID imdb; Title; Year; Vote; Voted; Country; Director; Cast; Genre\n"
+        a = self.__fa.tabulate1()
+        b = list(a)
+        b.insert(1, self.__imdb.get_code())
+        return b
+
+    @staticmethod
+    def report_headers():
+        b = list(faHelper.FAhelper.FAMovieData.colum_names)
+        b.insert(1, "ID imdb")
+        return b
+
+
+class MatchedMoviesList:
+    def __init__(self):
+        self.__table = []
+
+    def append(self, n):
+        assert isinstance(n, MovieMatch)
+        self.__table.append(n)
+
+    def elements(self):
+        return self.__table
+
+    def __saveTableToCsv1(self):
+        # Save movie list as CSV
+        fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+            tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".csv"
+
+        # with codecs.open(fileName, "w", "utf_16") as file1:
+        with open(fileName, "w") as file1:
+            writer = None
+            for movie in self.__table:
+                assert isinstance(movie, MovieMatch)
+                if writer is None:
+                    import unicodecsv as csv
+                    writer = csv.writer(file1, encoding='utf-8')
+                    writer.writerow(movie.report_headers())
+                writer.writerow(movie.tabulate1())
+
+    def __saveTableBeauty(self):
+        tabulate_table = []
+        for table_match in self.__table:
+            assert isinstance(table_match, MovieMatch)
+            tabulate_table.append(table_match.tabulate1())
+        table_beautiful = tabulate(tabulate_table, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
+        fileNameBeauty = "FA-moviesBeauty" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
+            tLocal.tm_mday) + '-fauserid' + fa.getUserID() + ".txt"
+        fileBeauty = codecs.open(fileNameBeauty, "w", "utf_16")
+        fileBeauty.write(table_beautiful)
+        fileBeauty.close()
+
+    def saveTableToFiles(self):
+        self.__saveTableToCsv1()
+        self.__saveTableBeauty()
 
 
 WORKERS = 4
@@ -73,68 +182,7 @@ print("Your FA ID is: ", fa.getUserID())
 # Download  
 fa.getDumpAllVotes()
 fatable = fa.getMoviesDumped()
-match_result_table = []
-
-
-def saveTableToCsv1():
-    # Save movie list as CSV
-    fileName = "FA-movies" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-        tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".csv"
-
-    # with codecs.open(fileName, "w", "utf_16") as file1:
-    with open(fileName, "w") as file1:
-        writer = None
-        for movie in match_result_table:
-            assert isinstance(movie, MovieMatch)
-            if writer is None:
-                import unicodecsv as csv
-                writer = csv.writer(file1, encoding='utf-8')
-                writer.writerow(movie.report_headers())
-            writer.writerow(movie.tabulate1())
-
-
-def saveTableBeauty():
-    tabulate_table = []
-    for table_match in match_result_table:
-        assert isinstance(table_match, MovieMatch)
-        tabulate_table.append(table_match.tabulate1())
-    table_beautiful = tabulate(tabulate_table, headers=MovieMatch.report_headers(), tablefmt='orgtbl')
-    fileNameBeauty = "FA-moviesBeauty" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-        tLocal.tm_mday) + '-fauserid' + fa.getUserID() + ".txt"
-    fileBeauty = codecs.open(fileNameBeauty, "w", "utf_16")
-    fileBeauty.write(table_beautiful)
-    fileBeauty.close()
-
-
-def saveTableToFiles():
-    saveTableToCsv1()
-    saveTableBeauty()
-
-
-class MovieMatch:
-    def __init__(self, fa, imdb):
-        assert isinstance(fa, faHelper.FAhelper.FAMovieData)
-        self.__fa = fa
-        self.__imdb = imdb
-
-    def fa(self):
-        return self.__fa
-
-    def imdb(self):
-        return self.__imdb
-
-    def tabulate1(self):
-        # "ID fa:" + fa.getUserID() + "; ID imdb; Title; Year; Vote; Voted; Country; Director; Cast; Genre\n"
-        a = self.__fa.tabulate1()
-        b = list(a)
-        b.insert(1, self.__imdb.get_code())
-        return b
-
-    @staticmethod
-    def report_headers():
-        b = list(faHelper.FAhelper.FAMovieData.colum_names)
-        b.insert(1, "ID imdb")
-        return b
+match_result_table_2 = MatchedMoviesList()
 
 
 def getImdbIdsThread(queue):
@@ -156,7 +204,7 @@ def getImdbIdsThread(queue):
               " (" + current_fa_movie.get_year() + ")")
 
         # [current_fa_movie[0], imdbID[0].decode(), current_fa_movie[1], current_fa_movie[2], current_fa_movie[3], current_fa_movie[4], current_fa_movie[5], current_fa_movie[6], current_fa_movie[7], current_fa_movie[8]]
-        match_result_table.append(MovieMatch(current_fa_movie, imdbID))
+        match_result_table_2.append(MovieMatch(current_fa_movie, imdbID))
         if index % 10 == 0:
             print("Task progress: " + str(index) + "/" + str(len(fatable)) + " (" + str(
                 index * 100 / float(len(fatable)))[
@@ -180,8 +228,8 @@ def voteImdbThread(queue):
             print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
         index = queue.get_count()
         if index % 10 == 0:
-            print("Task progress: " + str(index) + "/" + str(len(match_result_table)) + " (" + str(
-                index * 100 / float(len(match_result_table)))[:5] + "%)")
+            print("Task progress: " + str(index) + "/" + str(queue.get_total()) + " (" + str(
+                index * 100 / float(queue.get_total()))[:5] + "%)")
         queue.task_done()
 
 
@@ -204,7 +252,7 @@ if backuptoimdb:
     # Cola con las pelis para obterner el codigo de pelicula en IMDB    
     q = Queue.Queue()
     # Array para las peliculas que presenten peliculas
-    imdbNotFound = []
+    imdbNotFound = FAMovieList()
     imdbNotVoted = []
 
     # Start multi-thread. One thread for each worker, all use same queue.
@@ -225,23 +273,9 @@ if backuptoimdb:
     # Wait threads and workers to finish
     q.join()
 
-    if len(imdbNotFound) > 0:
+    if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-        # Write table with format
-        imdbNotFound_tabulated = []
-        for not_found_movie in imdbNotFound:
-            assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
-            imdbNotFound_tabulated.append(not_found_movie.tabulate1())
-        table_notFound = tabulate(imdbNotFound_tabulated,
-                                  headers=list(faHelper.FAhelper.FAMovieData.colum_names),
-                                  tablefmt='orgtbl')
-        fileNameNotFound = "FilmsNotFoundAtIMDB" + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-            tLocal.tm_mday) + '-fauser' + fa.getUserID() + ".txt"
-        fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
-        fileNotFound.write(table_notFound)
-        fileNotFound.close()
-        print("Movies not found:")
-        print(table_notFound)
+        imdbNotFound.saveAndPrint()
 
     print("\r\nAll movies from FA matched with IMDB database.\r\n")
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
@@ -272,7 +306,7 @@ if backuptoimdb:
         voter.setDaemon(True)
         voter.start()
 
-    for i in match_result_table:
+    for i in match_result_table_2.elements():
         qVotes.put(i)
 
     for i in range(WORKERS):
