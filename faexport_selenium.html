@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head profile="http://selenium-ide.openqa.org/profiles/test-case">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="selenium.base" href="http://www.filmaffinity.com/" />
+<title>bla</title>
+</head>
+<body>
+<table cellpadding="1" cellspacing="1" border="1">
+<thead>
+<tr><td rowspan="1" colspan="3">bla</td></tr>
+</thead><tbody>
+<tr>
+	<td>open</td>
+	<td>/es/main.html</td>
+	<td></td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>link=Iniciar sesión</td>
+	<td></td>
+</tr>
+<tr>
+	<td>type</td>
+	<td>name=username</td>
+	<td>USERNAME</td>
+</tr>
+<tr>
+	<td>type</td>
+	<td>name=password</td>
+	<td>PASSWORD</td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>name=ok</td>
+	<td></td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>link=críticas</td>
+	<td></td>
+</tr>
+<tr>
+	<td>selectWindow</td>
+	<td>null</td>
+	<td></td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>link=Mis votaciones</td>
+	<td></td>
+</tr>
+<tr>
+	<td>selectWindow</td>
+	<td>null</td>
+	<td></td>
+</tr>
+<tr>
+	<td>storeTable</td>
+	<td>id=main-content-table.0.1</td>
+	<td>var1</td>
+</tr>
+<tr>
+	<td>storeText</td>
+	<td>css=#mt-content-cell &gt; table &gt; tbody &gt; tr &gt; td</td>
+	<td>var2</td>
+</tr>
+<tr>
+	<td>storeTable</td>
+	<td>css=#mt-content-cell &gt; table.0.0</td>
+	<td>var4</td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>xpath=(//a[contains(text(),'2')])[6]</td>
+	<td></td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>xpath=(//a[contains(text(),'3')])[3]</td>
+	<td></td>
+</tr>
+<tr>
+	<td>clickAndWait</td>
+	<td>xpath=(//a[contains(@href, 'myvotes.php?p=2&amp;orderby=4')])[3]</td>
+	<td></td>
+</tr>
+</tbody></table>
+</body>
+</html>

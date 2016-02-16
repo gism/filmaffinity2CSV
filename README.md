@@ -7,31 +7,16 @@ Run main.py using python 2.7 and wait :)
 When login to IMDB captcha is required. Open captcha url and type text on python.
 
 # Remember:
-You can hardcode your user settings by changing following lines:
+You can hardcode your user settings by renaming config.py.example to config.py and updating content.
 
-```python
-  # Different options to get user ID:
-  # Option A: You want to write each time User and Password:
-  sUser = raw_input('Please enter your FilmAffinity USER:')
-  sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
-  fa.setUser(sUser, sPassword)
-      
-  # Option B: You want to hardcode your user and pass 
-  #    fa.setUser("Your USER", "Your PASSWORD")
-  
-  # Option C: Hardcode your User ID
-  # fa.setUserID(123456)
-```
+# About this fork:
+This code
+https://github.com/txemi/filmaffinity2IMDB
+was forked from
+https://github.com/gism/filmaffinity2IMDB
+by me with these objectives:
+* Reviewing imdb-fa matching code as it was not working sometimes proprely for me.
+* Considering evolve this code to get a nice API for getting data from imdb and fa.
 
-and
-
-
-```python
-  # Option A: You want to write each time User and Password:
-  sUser = raw_input('Please enter your FilmAffinity USER:')
-  sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
-  imdb.setUser(sUser, sPassword)
-  
-  # Option B: You want to hardcode your user and pass
-  # imdb.setUser("user@gmail.com", "imdb_pass")
-```
+I refactorized this code to increase readability and also added a config file not to type password with each execution.
+There is also a selenium version of fa code that I made before knowing about this project and I leave there for reference (faexport_selenium.py). I think is urllib version is preferred to selenium for http calls unless it would be even better using request python module.
