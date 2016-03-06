@@ -290,6 +290,7 @@ def match_fa_with_imdb(fa, start_time):
 
     if ConfigManager.copy_votes_to_imdb():
         copy_votes_from_fa_to_imdb(imdb, match_results, fa.getUserID())
+    return match_results
 
 
 def main():
