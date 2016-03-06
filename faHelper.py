@@ -53,23 +53,23 @@ class FAhelper:
     urlMain = "http://www.filmaffinity.com/en/main.php"
 
     def __init__(self):
-        self.userName = ""
-        self.userPass = ""
+        self.__userName = ""
+        self.__userPass = ""
         self.userId = "0"
 
         # Enable cookie support for urllib2
-        self.cookiejar = cookielib.CookieJar()
-        self.webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
+        self.__cookiejar = cookielib.CookieJar()
+        self.__webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.__cookiejar))
 
-        self.faMovies = []
-        self.faMoviesFilled = []
+        self.__faMovies = []
+        self.__faMoviesFilled = []
 
     def setUser(self, userName, userPass):
-        self.userName = userName
-        self.userPass = userPass
+        self.__userName = userName
+        self.__userPass = userPass
 
     def getUser(self):
-        return self.userName, self.userPass
+        return self.__userName, self.__userPass
 
     def setUserID(self, userId):
         self.userId = str(userId)
@@ -77,16 +77,16 @@ class FAhelper:
     def login(self):
         user, password = self.getUser()
 
-        self.webSession.open(self.urlLogin)
+        self.__webSession.open(self.urlLogin)
 
         # Post data to Filmaffinity login URL.
         dataForm = {"postback": 1, "rp": "", "username": user,
                     "password": password}  # a 30/10/2015 Han cambiado el formulario de login, que alegria
         dataPost = urllib.urlencode(dataForm)
         request = urllib2.Request(self.urlLogin, dataPost)
-        self.webSession.open(request)  # Our cookiejar automatically receives the cookies, after the request
+        self.__webSession.open(request)  # Our cookiejar automatically receives the cookies, after the request
 
-        webResponse = self.webSession.open(self.urlVotes)
+        webResponse = self.__webSession.open(self.urlVotes)
         pattern = re.compile('\?user_id=(\d+)"')
         match = pattern.search(webResponse.read())
 
@@ -101,7 +101,7 @@ class FAhelper:
 
     # returns 1 when login is succeed
     def loginSucceed(self):
-        return len(self.cookiejar) > 1
+        return len(self.__cookiejar) > 1
 
     # returns value of film affinity user ID
     def getUserID(self):
@@ -113,7 +113,7 @@ class FAhelper:
             raise Exception("ERROR FOUND: No user id found. Please login or set user id.")
 
         url = self.urlVotesID + self.userId
-        webResponse = self.webSession.open(url)
+        webResponse = self.__webSession.open(url)
         html = webResponse.read()
         pattern = re.compile('Page <b>1<\/b> of <b>([\d]+)<\/b>')
         match = pattern.search(html)
@@ -157,10 +157,10 @@ class FAhelper:
         def set_extra_info(self, ei):
             self.extra_info = ei
 
-        colum_names = ("ID", "Title", "Year", "Vote", "Voted", "Country", "Director", "Cast", "Genre")
+        report_attr_names = ("ID", "Title", "Year", "Vote", "Voted", "Country", "Director", "Cast", "Genre", 'url')
 
-        def tabulate1(self):
-            return self.get_id(), self.get_title(), self.get_year(), self.movieRate, None, self.extra_info.movieCountry, self.extra_info.movieDirector, self.extra_info.movieCast, self.extra_info.movieGenre
+        def report_attr_values(self):
+            return self.get_id(), self.get_title(), self.get_year(), self.movieRate, None, self.extra_info.movieCountry, self.extra_info.movieDirector, self.extra_info.movieCast, self.extra_info.movieGenre, self.extra_info.url
 
     def getDumpVotesPage(self, page):
 
@@ -168,7 +168,7 @@ class FAhelper:
             raise Exception("ERROR FOUND: No user id found. Please login or set user id.")
 
         url = self.urlVotesID + str(self.userId) + self.urlVotesIDpageSufix + str(page)
-        webResponse = self.webSession.open(url)
+        webResponse = self.__webSession.open(url)
         html = webResponse.read()
         html = unicode(html, 'utf-8')
 
@@ -196,40 +196,43 @@ class FAhelper:
 
                 pattern = re.compile('\((\d\d\d\d)\)')
                 match = pattern.search(title.text)
-                if match:
-                    movieYear = match.group(1)
-                    movieTitle = title.text.replace("(" + movieYear + ")", "").strip()
-                    movieTitle = movieTitle.replace("(TV Series)", "").strip()
-                    movieTitle = movieTitle.replace("(TV)", "").strip()
-                    movieTitle = movieTitle.replace("(S)", "").strip()
-                else:
-                    print(
+                if not match:
+                    raise NotImplementedError(
                         "ERROR FOUND: change regular expression at getDumpVotesPage() for movie year. Probably FA changed web page structure")
-                    sys.exit("Error happens, check log.")
+
+                movieYear = match.group(1)
+                movieTitle = title.text.replace("(" + movieYear + ")", "").strip()
+                movieTitle = movieTitle.replace("(TV Series)", "").strip()
+                movieTitle = movieTitle.replace("(TV)", "").strip()
+                movieTitle = movieTitle.replace("(S)", "").strip()
 
                 movieResult = self.FAMovieData(movieID=movieID, movieTitle=movieTitle, movieYear=movieYear,
                                                movieRate=movieRate, dayYYYYMMDD=dayYYYYMMDD)
                 # print movieID, movieTitle, movieYear, movieRate, dayYYYYMMDD
-                self.faMovies.append(movieResult)
+                self.__faMovies.append(movieResult)
 
     class FaMovieExtraInfo:
 
-        def __init__(self, movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre):
+        def __init__(self, movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre, url):
             self.movieTitle = movieTitle
             self.movieYear = movieYear
             self.movieCountry = movieCountry
             self.movieDirector = movieDirector
             self.movieCast = movieCast
             self.movieGenre = movieGenre
+            self.url = url
+
+    def getMovieUrl(self, movieID):
+        return self.urlFilm + str(movieID) + self.urlFilmSufix
 
     def getMovieInfoById(self, movieID):
 
         found = 0
         intento = 0
+        url = self.getMovieUrl(movieID)
         while found == 0:
             if intento < 3:
-                url = self.urlFilm + str(movieID) + self.urlFilmSufix
-                webResponse = self.webSession.open(url)
+                webResponse = self.__webSession.open(url)
 
                 html = webResponse.read()
                 html = unicode(html, 'utf-8')
@@ -249,33 +252,29 @@ class FAhelper:
                 else:
                     intento = intento + 1
             else:
-                print(
+                raise NotImplementedError(
                     "ERROR FOUND: change regular expression at getMovieInfoById() for movie title. Probably FA changed web page structure. Movie ID: " + str(
                         movieID))
-                sys.exit("Error happens, check log.")
 
         # Get movie year information
         pattern = re.compile('<dt>Year<\/dt>[\s\r\n]+<dd[\w\W]+?>(\d\d\d\d)<\/dd>')
         match = pattern.search(html)
-        if match:
-            movieYear = match.group(1)
-        else:
-            print(
+        if not match:
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie year. Probably FA changed web page structure. Movie ID: " + str(
                     movieID))
-            sys.exit("Error happens, check log.")
+        movieYear = match.group(1)
 
         # Get movie country information
         pattern = re.compile(
             '<dt>Country<\/dt>[\r\n\s]+<dd><span id="country-img"><img src="\/imgs\/countries\/[\w]+.jpg" title="[\W\w\s]+?"><\/span>&nbsp;([\W\w\s]+?)<\/dd>')
         match = pattern.search(html)
-        if match:
-            movieCountry = match.group(1)
-        else:
-            print(
+        if not match:
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie county. Probably FA changed web page structure. Movie ID: " + str(
                     movieID))
-            sys.exit("Error happens, check log.")
+
+        movieCountry = match.group(1)
 
         # Get movie director information
         pattern = re.compile('<dt>Director<\/dt>[\w\s\W\r\n]+?<span itemprop="name">([\w\W\s]+?)<\/span>')
@@ -284,10 +283,9 @@ class FAhelper:
             movieDirector = match.group(1)
             movieDirector = movieDirector.strip()
         else:
-            print(
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie director. Probably FA changed web page structure. Movie ID: " + str(
                     movieID))
-            sys.exit("Error happens, check log.")
 
         # Get movie cast information
         pattern = re.compile('<dt>Cast<\/dt>[\s\r\n]+?<dd>([\w\W]+?)<\/dd>')
@@ -316,18 +314,17 @@ class FAhelper:
             movieGenre = movieGenre.replace("\r\n", " ")
             movieGenre = movieGenre.strip()
         else:
-            print(
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie genre. Probably FA changed web page structure. Movie ID: " + str(
                     movieID))
-            sys.exit("Error happens, check log.")
 
-        return self.FaMovieExtraInfo(movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre)
+        return self.FaMovieExtraInfo(movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre, url=url)
 
     def getMoviesDumped(self):
-        return self.faMovies
+        return self.__faMovies
 
     def getFilledMoviesDumped(self):
-        return self.faMoviesFilled
+        return self.__faMoviesFilled
 
     def __faVoteDumper(self, queue):
         faHelp = self
@@ -349,11 +346,13 @@ class FAhelper:
                 queue.task_done()
                 break  # reached end of queue
 
-            extraInfo = faHelp.getMovieInfoById(
-                film.movieID)  # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
+            assert isinstance(film, self.FAMovieData)
+            extraInfo = faHelp.getMovieInfoById(film.movieID)
+            # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
+            assert isinstance(extraInfo, self.FaMovieExtraInfo)
             film.set_extra_info(extraInfo)
 
-            faHelp.faMoviesFilled.append(film)
+            faHelp.__faMoviesFilled.append(film)
 
             print("[FA get all data] ", film.get_title())
             queue.task_done()
@@ -362,11 +361,10 @@ class FAhelper:
         numVotes, numPages = self.getNumVotes()
         print("FOUND: {0} movies in {1} pages.".format(numVotes, numPages))
 
-
         print("\r\nPushing pages to queue to get all movie information.")
         common.createTrheadedQueue(lambda queue: self.__faVoteDumper(queue), (), range(1, int(numPages) + 1))
 
         print("\r\nPushing movies to queue to get all movie information.")
-        common.createTrheadedQueue(lambda queue: self.__faFillMovieInfo(queue), (), self.faMovies)
+        common.createTrheadedQueue(lambda queue: self.__faFillMovieInfo(queue), (), self.__faMovies)
 
         pass

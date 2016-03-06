@@ -30,9 +30,9 @@ class FAMovieList:
         imdbNotFound_tabulated = []
         for not_found_movie in self.__imdbNotFound:
             assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
-            imdbNotFound_tabulated.append(not_found_movie.tabulate1())
+            imdbNotFound_tabulated.append(not_found_movie.report_attr_values())
         table_notFound = tabulate(imdbNotFound_tabulated,
-                                  headers=list(faHelper.FAhelper.FAMovieData.colum_names),
+                                  headers=list(faHelper.FAhelper.FAMovieData.report_attr_names),
                                   tablefmt='orgtbl')
 
         tLocal = time.localtime()
@@ -58,7 +58,7 @@ class MovieMatch:
         return self.__imdb
 
     def report(self):
-        fa_fields = self.__fa.tabulate1()
+        fa_fields = self.__fa.report_attr_values()
         fa_fields_in_list = list(fa_fields)
         fa_fields_in_list.insert(3, self.__imdb.get_year())
         fa_fields_in_list.insert(2, self.__imdb.get_title())
@@ -69,7 +69,7 @@ class MovieMatch:
 
     @staticmethod
     def report_headers():
-        b = list(faHelper.FAhelper.FAMovieData.colum_names)
+        b = list(faHelper.FAhelper.FAMovieData.report_attr_names)
         b.insert(3, "imdb year")
         b.insert(2, "imdb title")
         b.insert(1, "imdb ratio")
