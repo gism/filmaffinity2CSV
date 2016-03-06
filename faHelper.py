@@ -7,9 +7,6 @@ import cookielib, urllib, urllib2
 from bs4 import BeautifulSoup
 
 
-# WORKERS = 4  # Mutli-Thread workers
-
-
 # From October 12, 2015 to 20151012
 def changeDateString(dateBad):
     date = dateBad.split(" ")
@@ -51,12 +48,6 @@ class FAhelper:
 
     urlMain = "http://www.filmaffinity.com/en/main.php"
 
-    cookiejar = None
-    webSession = None
-
-    faMovies = []
-    faMoviesFilled = []
-
     def __init__(self):
         self.userName = ""
         self.userPass = ""
@@ -65,6 +56,9 @@ class FAhelper:
         # Enable cookie support for urllib2
         self.cookiejar = cookielib.CookieJar()
         self.webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
+
+        self.faMovies = []
+        self.faMoviesFilled = []
 
     def setUser(self, userName, userPass):
         self.userName = userName
@@ -337,6 +331,35 @@ class FAhelper:
     def getFilledMoviesDumped(self):
         return self.faMoviesFilled
 
+    def __faVoteDumper(self, queue):
+        faHelp = self
+        while 1:
+            page = queue.get()
+            if page is None:
+                queue.task_done()
+                break  # reached end of queue
+
+            faHelp.getDumpVotesPage(page)
+            print("Analyzing vote page: ", page)
+            queue.task_done()
+
+    def __faFillInfo(self, queue):
+        faHelp = self
+        while 1:
+            film = queue.get()
+            if film is None:
+                queue.task_done()
+                break  # reached end of queue
+
+            extraInfo = faHelp.getMovieInfoById(
+                film.movieID)  # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
+            film.set_extra_info(extraInfo)
+
+            faHelp.faMoviesFilled.append(film)
+
+            print("[FA get all data] ", film.get_title())
+            queue.task_done()
+
     def getDumpAllVotes(self):
         numVotes, numPages = self.getNumVotes()
         print("FOUND: {0} movies in {1} pages.".format(numVotes, numPages))
@@ -344,50 +367,9 @@ class FAhelper:
         import common
 
         print("\r\nPushing pages to queue to get all movie information.")
-        common.createTrheadedQueue(FaVoteDumper, (self,), range(1, int(numPages) + 1))
+        common.createTrheadedQueue(lambda queue: self.__faVoteDumper(queue), (), range(1, int(numPages) + 1))
 
         print("\r\nPushing movies to queue to get all movie information.")
-        common.createTrheadedQueue(FaFillInfo, (self,), self.faMovies)
+        common.createTrheadedQueue(lambda queue: self.__faFillInfo(queue), (), self.faMovies)
 
         pass
-
-
-class FaVoteDumper(threading.Thread):
-    def __init__(self, queue, faHelp):
-        self.__queue = queue
-        threading.Thread.__init__(self)
-        self.faHelp = faHelp
-
-    def run(self):
-        while 1:
-            page = self.__queue.get()
-            if page is None:
-                self.__queue.task_done()
-                break  # reached end of queue
-
-            self.faHelp.getDumpVotesPage(page)
-            print("Analyzing vote page: ", page)
-            self.__queue.task_done()
-
-
-class FaFillInfo(threading.Thread):
-    def __init__(self, queue, faHelp):
-        self.__queue = queue
-        threading.Thread.__init__(self)
-        self.faHelp = faHelp
-
-    def run(self):
-        while 1:
-            film = self.__queue.get()
-            if film is None:
-                self.__queue.task_done()
-                break  # reached end of queue
-
-            extraInfo = self.faHelp.getMovieInfoById(
-                film.movieID)  # movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre
-            film.set_extra_info(extraInfo)
-
-            self.faHelp.faMoviesFilled.append(film)
-
-            print("[FA get all data] ", film.get_title())
-            self.__queue.task_done()
