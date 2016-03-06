@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
-import threading, Queue
-import sys
 import re
-import cookielib, urllib, urllib2
+import sys
+
+import cookielib
+import urllib
+import urllib2
 from bs4 import BeautifulSoup
+
+import common
 
 
 # From October 12, 2015 to 20151012
@@ -106,30 +110,26 @@ class FAhelper:
     def getNumVotes(self):
 
         if self.userId == "0":
-            print("ERROR FOUND: No user id found. Please login or set user id.")
-            sys.exit("Error happens, check log.")
-            return
+            raise Exception("ERROR FOUND: No user id found. Please login or set user id.")
 
         url = self.urlVotesID + self.userId
         webResponse = self.webSession.open(url)
         html = webResponse.read()
         pattern = re.compile('Page <b>1<\/b> of <b>([\d]+)<\/b>')
         match = pattern.search(html)
-        if match:
-            numPages = match.group(1)
-        else:
-            print(
+        if not match:
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getNumVotes() for numPages. Probably FA changed web page structure")
-            sys.exit("Error happens, check log.")
+
+        numPages = match.group(1)
 
         pattern = re.compile('<div class="number">([\d,\.]+)<\/div>[\r\n\s\t]+<div class="text">Votes<\/div>')
         match = pattern.search(html)
-        if match:
-            numVotes = match.group(1)
-        else:
-            print(
-                "ERROR FOUND: change regular expression at getVotesByID() for numVotes. Probably FA changed web page structure")
-            sys.exit("Error happens, check log.")
+        if not match:
+            raise NotImplementedError(
+                "Change regular expression at getVotesByID() for numVotes. Probably FA changed web page structure")
+
+        numVotes = match.group(1)
 
         return numVotes, numPages
 
@@ -165,9 +165,7 @@ class FAhelper:
     def getDumpVotesPage(self, page):
 
         if self.userId == "0":
-            print("ERROR FOUND: No user id found. Please login or set user id.")
-            sys.exit("Error happens, check log.")
-            return
+            raise Exception("ERROR FOUND: No user id found. Please login or set user id.")
 
         url = self.urlVotesID + str(self.userId) + self.urlVotesIDpageSufix + str(page)
         webResponse = self.webSession.open(url)
@@ -343,7 +341,7 @@ class FAhelper:
             print("Analyzing vote page: ", page)
             queue.task_done()
 
-    def __faFillInfo(self, queue):
+    def __faFillMovieInfo(self, queue):
         faHelp = self
         while 1:
             film = queue.get()
@@ -364,12 +362,11 @@ class FAhelper:
         numVotes, numPages = self.getNumVotes()
         print("FOUND: {0} movies in {1} pages.".format(numVotes, numPages))
 
-        import common
 
         print("\r\nPushing pages to queue to get all movie information.")
         common.createTrheadedQueue(lambda queue: self.__faVoteDumper(queue), (), range(1, int(numPages) + 1))
 
         print("\r\nPushing movies to queue to get all movie information.")
-        common.createTrheadedQueue(lambda queue: self.__faFillInfo(queue), (), self.faMovies)
+        common.createTrheadedQueue(lambda queue: self.__faFillMovieInfo(queue), (), self.faMovies)
 
         pass
