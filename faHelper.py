@@ -6,7 +6,8 @@ import re
 import cookielib, urllib, urllib2
 from bs4 import BeautifulSoup
 
-WORKERS = 4  # Mutli-Thread workers
+
+# WORKERS = 4  # Mutli-Thread workers
 
 
 # From October 12, 2015 to 20151012
@@ -340,40 +341,15 @@ class FAhelper:
         numVotes, numPages = self.getNumVotes()
         print("FOUND: {0} movies in {1} pages.".format(numVotes, numPages))
 
-        queue = Queue.Queue()
-        for i in range(WORKERS):
-            # FaVoteDumper(queue, self).start() # start a worker
-            worker = FaVoteDumper(queue, self)
-            worker.setDaemon(True)
-            worker.start()
+        import common
 
-        for page in range(1, int(numPages) + 1):
-            queue.put(page)
-        print("All pages pushed to queue!")
+        print("\r\nPushing pages to queue to get all movie information.")
+        common.createTrheadedQueue(FaVoteDumper, (self,), range(1, int(numPages) + 1))
 
-        for i in range(WORKERS):
-            queue.put(None)  # add end-of-queue markers
+        print("\r\nPushing movies to queue to get all movie information.")
+        common.createTrheadedQueue(FaFillInfo, (self,), self.faMovies)
 
-        # Wait all threats of queue to finish
-        queue.join()
-
-        queueFill = Queue.Queue()
-        for i in range(WORKERS):
-            # FaFillInfo(queueFill, self).start() # start a worker
-            worker = FaFillInfo(queueFill, self)
-            worker.setDaemon(True)
-            worker.start()
-
-        for movie in self.faMovies:
-            # print "Push movie: ", movie[0]
-            queueFill.put(movie)
-        print("\r\nAll movies pushed to queue to get all movie information.")
-
-        for i in range(WORKERS):
-            queueFill.put(None)  # add end-of-queue markers
-
-        # Wait all threats of queueFill to finish
-        queueFill.join()
+        pass
 
 
 class FaVoteDumper(threading.Thread):
