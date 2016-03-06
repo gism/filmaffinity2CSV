@@ -208,15 +208,33 @@ class ConfigManager:
         return sUser, sPassword
 
     @classmethod
-    def get_backup_to_imdb(cls):
+    def match_with_imdb(cls):
+        try:
+            import config
+
+            backuptoimdb = config.matchwithimdb
+        except:
+            msg = 'Do you want to match with IMDB? <Y> or <N>:'
+            sIn = raw_input('\r\n{}'.format(msg))
+            while (sIn.lower() != "y" and sIn.lower() != "n"):
+                sIn = raw_input(msg)
+            if sIn.lower() == "y":
+                backuptoimdb = True
+            else:
+                backuptoimdb = False
+        return backuptoimdb
+
+    @classmethod
+    def copy_votes_to_imdb(cls):
         try:
             import config
 
             backuptoimdb = config.backuptoimdb
         except:
-            sIn = raw_input('\r\nDo you want to backup to IMDB? <Y> or <N>:')
+            msg = 'Do you want to backup to IMDB? <Y> or <N>:'
+            sIn = raw_input('\r\n{}:'.format(msg))
             while (sIn.lower() != "y" and sIn.lower() != "n"):
-                sIn = raw_input('Do you want to backup to IMDB? <Y> or <N>:')
+                sIn = raw_input(msg)
             if sIn.lower() == "y":
                 backuptoimdb = True
             else:
@@ -224,12 +242,35 @@ class ConfigManager:
         return backuptoimdb
 
 
-def copy_votes_from_fa_to_imdb(fa, match_results, start_time):
+def copy_votes_from_fa_to_imdb(imdb, match_results, fa_user_id):
+    imdbNotVoted = MatchedMoviesList()
+    # Option A: You want to write each time User and Password:
+    sUser, sPassword = ConfigManager.get_imdb_user_pass()
+
+    imdb.setUser(sUser, sPassword)
+
+    # Login to IMDB
+    imdb.login()
+    while not imdb.loginSucceed():
+        imdb.login()
+    print("Login succeed")
+    createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
+                        elements=match_results.elements())
+
+    if len(imdbNotVoted) > 0:
+        print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
+              ' (fa: ' + fa_user_id + ')')
+        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa_user_id)
+        print("Movies not voted:")
+        print(table_notVoted)
+
+
+def match_fa_with_imdb(fa, start_time):
+    match_results = MatchedMoviesList()
     imdb = imdbHelper.IMDBhelper()
 
     # Array para las peliculas que presenten peliculas
     imdbNotFound = FAMovieList()
-    imdbNotVoted = MatchedMoviesList()
 
     # Cola con las pelis para obterner el codigo de pelicula en IMDB
     print('\nAbout to get imdb ids...\n')
@@ -247,25 +288,8 @@ def copy_votes_from_fa_to_imdb(fa, match_results, start_time):
     print("\r\nAll movies from FA matched with IMDB database.\r\n")
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 
-    # Option A: You want to write each time User and Password:
-    sUser, sPassword = ConfigManager.get_imdb_user_pass()
-
-    imdb.setUser(sUser, sPassword)
-
-    # Login to IMDB
-    imdb.login()
-    while not imdb.loginSucceed():
-        imdb.login()
-    print("Login succeed")
-    createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
-                        elements=match_results.elements())
-
-    if len(imdbNotVoted) > 0:
-        print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
-              ' (fa: ' + fa.getUserID() + ')')
-        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa.getUserID())
-        print("Movies not voted:")
-        print(table_notVoted)
+    if ConfigManager.copy_votes_to_imdb():
+        copy_votes_from_fa_to_imdb(imdb, match_results, fa.getUserID())
 
 
 def main():
@@ -294,12 +318,10 @@ def main():
     print("Your FA ID is: ", fa.getUserID())
 
     fa.getDumpAllVotes()
-    match_results = MatchedMoviesList()
-    backuptoimdb = ConfigManager.get_backup_to_imdb()
 
-    if backuptoimdb:
-        copy_votes_from_fa_to_imdb(fa, match_results, start_time)
-    match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
+    if ConfigManager.match_with_imdb():
+        match_results = match_fa_with_imdb(fa, start_time)
+        match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
     print("\r\nDONE")
