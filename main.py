@@ -32,6 +32,11 @@ class CountingQueue(Queue.Queue):
     def get_total(self):
         return self.__total
 
+    def get_progress_desc(self):
+        queue = self
+        percent = queue.get_count() * 100 / float(queue.get_total())
+        return str(queue.get_count()) + "/" + str(queue.get_total()) + " (" + str(percent)[:5] + "%)"
+
 
 def createTrheadedQueue(target, args, elements):
     WORKERS = 12
@@ -201,8 +206,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
 
         match_results.append(MovieMatch(current_fa_movie, imdbID))
         if queue.get_count() % 10 == 0:
-            print("Task progress: " + str(queue.get_count()) + "/" + str(queue.get_total()) + " (" + str(
-                queue.get_count() * 100 / float(queue.get_total()))[:5] + "%)")
+            print("Task progress: " + queue.get_progress_desc())
         queue.task_done()
 
 
@@ -222,8 +226,7 @@ def voteImdbThread(queue, imdb, imdbNotVoted):
             print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
         index = queue.get_count()
         if index % 10 == 0:
-            print("Task progress: " + str(index) + "/" + str(queue.get_total()) + " (" + str(
-                index * 100 / float(queue.get_total()))[:5] + "%)")
+            print("Task progress: " + queue.get_progress_desc())
         queue.task_done()
 
 
@@ -270,7 +273,7 @@ class ConfigManager:
         return backuptoimdb
 
 
-def backup_to_imdb(fa, match_results, start_time):
+def copy_votes_from_fa_to_imdb(fa, match_results, start_time):
     imdb = imdbHelper.IMDBhelper()
 
     # Array para las peliculas que presenten peliculas
@@ -329,7 +332,6 @@ def main():
 
     fa = faHelper.FAhelper()
     sUser, sPassword = ConfigManager.get_fa_user_pass()
-
     fa.setUser(sUser, sPassword)
     fa.login()
     if fa.loginSucceed():
@@ -345,7 +347,7 @@ def main():
     backuptoimdb = ConfigManager.get_backup_to_imdb()
 
     if backuptoimdb:
-        backup_to_imdb(fa, match_results, start_time)
+        copy_votes_from_fa_to_imdb(fa, match_results, start_time)
     match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
