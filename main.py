@@ -34,7 +34,7 @@ class CountingQueue(Queue.Queue):
 
 
 def createTrheadedQueue(target, args, elements):
-    WORKERS = 4
+    WORKERS = 12
     q = CountingQueue()
     # Start multi-thread. One thread for each worker, all use same queue.
     threads = []
@@ -227,6 +227,93 @@ def voteImdbThread(queue, imdb, imdbNotVoted):
         queue.task_done()
 
 
+class ConfigManager:
+    @classmethod
+    def get_imdb_user_pass(cls):
+        pass
+        try:
+            import config
+
+            sUser = config.imdb_user
+            sPassword = config.imdb_password
+        except:
+            sUser = raw_input('Please enter your FilmAffinity USER:')
+            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+        return sUser, sPassword
+
+    @classmethod
+    def get_fa_user_pass(cls):
+        try:
+            import config
+
+            sUser = config.fauser
+            sPassword = config.fapass
+        except:
+            sUser = raw_input('Please enter your FilmAffinity USER:')
+            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+        return sUser, sPassword
+
+    @classmethod
+    def get_backup_to_imdb(cls):
+        try:
+            import config
+
+            backuptoimdb = config.backuptoimdb
+        except:
+            sIn = raw_input('\r\nDo you want to backup to IMDB? <Y> or <N>:')
+            while (sIn.lower() != "y" and sIn.lower() != "n"):
+                sIn = raw_input('Do you want to backup to IMDB? <Y> or <N>:')
+            if sIn.lower() == "y":
+                backuptoimdb = True
+            else:
+                backuptoimdb = False
+        return backuptoimdb
+
+
+def backup_to_imdb(fa, match_results, start_time):
+    imdb = imdbHelper.IMDBhelper()
+
+    # Array para las peliculas que presenten peliculas
+    imdbNotFound = FAMovieList()
+    imdbNotVoted = MatchedMoviesList()
+
+    # Cola con las pelis para obterner el codigo de pelicula en IMDB
+    print('\nAbout to get imdb ids...\n')
+
+    fa_movies = fa.getMoviesDumped()
+    createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
+                        elements=fa_movies)
+
+    if not imdbNotFound.empty():
+        print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
+        table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", '-fauser' + fa.getUserID())
+        print("Movies not found:")
+        print(table_notFound)
+
+    print("\r\nAll movies from FA matched with IMDB database.\r\n")
+    print("--- Total runtime %s seconds ---" % (time.time() - start_time))
+
+    # Option A: You want to write each time User and Password:
+    sUser, sPassword = ConfigManager.get_imdb_user_pass()
+
+    imdb.setUser(sUser, sPassword)
+
+    # Login to IMDB
+    imdb.login()
+    while not imdb.loginSucceed():
+        imdb.login()
+    print("Login succeed")
+    createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
+                        elements=match_results.elements())
+
+    if len(imdbNotVoted) > 0:
+        print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
+              ' (fa: ' + fa.getUserID() + ')')
+        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa.getUserID())
+        print("Movies not voted:")
+        print(table_notVoted)
+
+
 def main():
     start_time = time.time()
     logo = '''
@@ -241,15 +328,7 @@ def main():
     print(logo)
 
     fa = faHelper.FAhelper()
-
-    try:
-        import config
-
-        sUser = config.fauser
-        sPassword = config.fapass
-    except:
-        sUser = raw_input('Please enter your FilmAffinity USER:')
-        sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+    sUser, sPassword = ConfigManager.get_fa_user_pass()
 
     fa.setUser(sUser, sPassword)
     fa.login()
@@ -262,69 +341,11 @@ def main():
     print("Your FA ID is: ", fa.getUserID())
 
     fa.getDumpAllVotes()
-    fa_movies = fa.getMoviesDumped()
     match_results = MatchedMoviesList()
-
-    try:
-        import config
-
-        backuptoimdb = config.backuptoimdb
-    except:
-        sIn = raw_input('\r\nDo you want to backup to IMDB? <Y> or <N>:')
-        while (sIn.lower() != "y" and sIn.lower() != "n"):
-            sIn = raw_input('Do you want to backup to IMDB? <Y> or <N>:')
-        if sIn.lower() == "y":
-            backuptoimdb = True
-        else:
-            backuptoimdb = False
+    backuptoimdb = ConfigManager.get_backup_to_imdb()
 
     if backuptoimdb:
-        imdb = imdbHelper.IMDBhelper()
-
-        # Array para las peliculas que presenten peliculas
-        imdbNotFound = FAMovieList()
-        imdbNotVoted = MatchedMoviesList()
-
-        # Cola con las pelis para obterner el codigo de pelicula en IMDB
-        print('\nAbout to get imdb ids...\n')
-        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
-                            elements=fa_movies)
-
-        if not imdbNotFound.empty():
-            print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-            table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", '-fauser' + fa.getUserID())
-            print("Movies not found:")
-            print(table_notFound)
-
-        print("\r\nAll movies from FA matched with IMDB database.\r\n")
-        print("--- Total runtime %s seconds ---" % (time.time() - start_time))
-
-        # Option A: You want to write each time User and Password:
-        try:
-            import config
-
-            sUser = config.imdb_user
-            sPassword = config.imdb_password
-        except:
-            sUser = raw_input('Please enter your FilmAffinity USER:')
-            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
-        imdb.setUser(sUser, sPassword)
-
-        # Login to IMDB
-        imdb.login()
-        while not imdb.loginSucceed():
-            imdb.login()
-        print("Login succeed")
-        createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
-                            elements=match_results.elements())
-
-        if len(imdbNotVoted) > 0:
-            print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
-                  ' (fa: ' + fa.getUserID() + ')')
-            table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa.getUserID())
-            print("Movies not voted:")
-            print(table_notVoted)
-
+        backup_to_imdb(fa, match_results, start_time)
     match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
