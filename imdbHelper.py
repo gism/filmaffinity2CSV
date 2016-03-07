@@ -246,9 +246,54 @@ class IMDBhelper:
         def get_url(self):
             return self.__url
 
-    def getMovieCodeByAPI(self, mTitle, mYear):
+    def __found_movie_from_movie_dom_element(self, movie, mTitle):
+        pass
+        description = movie.getElementsByTagName("Description")
+        for a in description:
+            if (a.childNodes[0].nodeValue[:4]).isnumeric:
+                # Some times isnumeric is not working ¿unicode type problem?
+                sYear = a.childNodes[0].nodeValue[:4]
+                sYear = filter(type(sYear).isdigit, sYear)
+                sYear = "0" + sYear
+                year = int(sYear)
 
-        findList = []
+        movieFoundTitle = movie.childNodes[0].nodeValue
+        movieFoundYear = year
+        movieFoundCode = movie.getAttribute("id")
+
+        titleRatio = sDiff(None, mTitle, movieFoundTitle).ratio()
+
+        # print("API: " + str(movieFoundTitle) + " | " + str(movieFoundYear) + " | " + str(movieFoundCode) + " | Ratio: " + str(titleRatio))
+        uuu = self.ImdbFoundMovie(code=movieFoundCode, title=movieFoundTitle, year=movieFoundYear,
+                                  ratio=titleRatio, url=self.getMovieUrl(movieFoundCode))
+        return uuu
+
+    def __get_best_match(self, found_movies, mYear):
+        # Get the best match
+        bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
+        for movie in found_movies:
+            assert isinstance(movie, self.ImdbFoundMovie)
+            if abs(int(movie.get_year()) - int(mYear)) <= 1:
+                if bestResult.get_ratio() < movie.get_ratio():
+                    bestResult = movie
+
+        if bestResult.get_ratio() > 0.5:
+            return bestResult
+
+        else:
+            # This is a very optimistic way of think, but for my movie list it works nice.
+            if len(found_movies) > 0:
+                if str(found_movies[0].get_year()) == mYear:
+                    return found_movies[0]
+                else:
+                    # No result.
+                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+            else:
+                # No result.
+                return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+
+    def getMovieCodeByAPI(self, mTitle, mYear):
+        found_movies = []
 
         sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8')})
         urlAdr = self.IMDBbyTitleAPI + sUrlAdd
@@ -268,49 +313,14 @@ class IMDBhelper:
         # urlHTML = unicode(urlHTML, 'utf-8')
 
         IMDBfoundAPI = minidom.parseString(urlHTML)
-        movies = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
+        movies_dom_elements = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
 
-        for movie in movies:
-            description = movie.getElementsByTagName("Description")
-            for a in description:
-                if (a.childNodes[0].nodeValue[:4]).isnumeric:
-                    # Some times isnumeric is not working ¿unicode type problem?
-                    sYear = a.childNodes[0].nodeValue[:4]
-                    sYear = filter(type(sYear).isdigit, sYear)
-                    sYear = "0" + sYear
-                    year = int(sYear)
+        for movie_dom_element in movies_dom_elements:
+            found_movie = self.__found_movie_from_movie_dom_element(movie_dom_element, mTitle)
+            assert isinstance(found_movie, self.ImdbFoundMovie)
+            found_movies.append(found_movie)
 
-            movieFoundTitle = movie.childNodes[0].nodeValue
-            movieFoundYear = year
-            movieFoundCode = movie.getAttribute("id")
-
-            titleRatio = sDiff(None, mTitle, movieFoundTitle).ratio()
-
-            # print("API: " + str(movieFoundTitle) + " | " + str(movieFoundYear) + " | " + str(movieFoundCode) + " | Ratio: " + str(titleRatio))
-            findList.append(self.ImdbFoundMovie(code=movieFoundCode, title=movieFoundTitle, year=movieFoundYear,
-                                                ratio=titleRatio, url=self.getMovieUrl(movieFoundCode)))
-
-        # Get the best match
-        bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
-        for movie in findList:
-            if abs(int(movie.get_year()) - int(mYear)) <= 1:
-                if bestResult.get_ratio() < movie.get_ratio():
-                    bestResult = movie
-
-        if bestResult.get_ratio() > 0.5:
-            return bestResult
-
-        else:
-            # This is a very optimistic way of think, but for my movie list it works nice.
-            if len(findList) > 0:
-                if str(findList[0].get_year()) == mYear:
-                    return findList[0]
-                else:
-                    # No result.
-                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
-            else:
-                # No result.
-                return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+        return self.__get_best_match(found_movies, mYear)
 
     def voteMovie(self, mCode, mVote):
         urlAdr = "http://www.imdb.com/title/" + mCode + "/vote"
