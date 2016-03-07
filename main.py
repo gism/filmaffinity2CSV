@@ -65,6 +65,7 @@ class MovieMatch:
         fa_fields_in_list.insert(1, self.__imdb.get_ratio())
         fa_fields_in_list.insert(1, self.__imdb.get_result())
         fa_fields_in_list.insert(1, self.__imdb.get_code())
+        fa_fields_in_list.append(self.__imdb.get_url())
         return fa_fields_in_list
 
     @staticmethod
@@ -75,6 +76,7 @@ class MovieMatch:
         b.insert(1, "imdb ratio")
         b.insert(1, "imdb match")
         b.insert(1, "imdb code")
+        b.append('imdb url')
         return b
 
 
