@@ -98,6 +98,62 @@ class IMDBhelper:
     def loginSucceed(self):
         return 'id' in [cookie.name for cookie in self.cookiejar]
 
+    class ImdbFoundMovie:
+        class Result:
+            MATCH = 'match'
+            NO_MATCH = 'no_match'
+            BAD_MATCH = 'bad_match'
+
+        def __init__(self, code=None, title=None, year=None, title_ratio=None, result=Result.MATCH, url=None,
+                     year_diff=None):
+            if result != self.Result.MATCH:
+                if code is not None:
+                    assert isinstance(url, str) and url.startswith('http')
+                    pass
+                assert code is None
+                assert title is None
+                assert year is None
+                if result == self.Result.BAD_MATCH:
+                    assert title_ratio == None
+            self.__code = code
+            self.__title = title
+            self.__year = year
+            self.__title_ratio = title_ratio
+            self.__result = result
+            self.__url = url
+            self.__year_diff = year_diff
+            pass
+
+        def get_result(self):
+            return self.__result
+
+        def get_code(self):
+            return self.__code
+
+        def get_code_decoded(self):
+            return self.__code.decode()
+
+        def get_title(self):
+            return self.__title
+
+        def get_year(self):
+            return self.__year
+
+        def get_title_ratio(self):
+            return self.__title_ratio
+
+        def is_no_match(self):
+            return self.__result == self.Result.NO_MATCH
+
+        def is_bad_match(self):
+            return self.__result == self.Result.BAD_MATCH
+
+        def get_url(self):
+            return self.__url
+
+        def get_year_diff(self):
+            return self.__year_diff
+
     def getMovieCode(self, mTitle, mYear):
 
         findList = []
@@ -159,7 +215,8 @@ class IMDBhelper:
                     badCapture = movieTitle.find(';">')
 
                 titleRatio = sDiff(None, mTitle, movieTitle).ratio()
-                findList.append(self.ImdbFoundMovie(code=movieCode, title=movieTitle, year=movieYear, ratio=titleRatio))
+                findList.append(
+                    self.ImdbFoundMovie(code=movieCode, title=movieTitle, year=movieYear, title_ratio=titleRatio))
 
             # Find AKAS tittles.
             pattern = re.compile('"result_text"> <a href="\/title\/(tt\d+).*?\((\d+)\).*?aka.*?"(.*?)"',
@@ -180,74 +237,23 @@ class IMDBhelper:
                     titleRatio2 = 0
 
                 titleRatio = max(titleRatio, titleRatio2)
-                findList.append(self.ImdbFoundMovie(code=akaMovieCode, title=akaTitle, year=akaYear, ratio=titleRatio))
+                findList.append(
+                    self.ImdbFoundMovie(code=akaMovieCode, title=akaTitle, year=akaYear, title_ratio=titleRatio))
 
             # Get the best match
-            bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
+            bestResult = self.ImdbFoundMovie(title_ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
 
             for movie in findList:
                 if abs(int(movie.get_year()) - int(mYear)) <= 1:
-                    if bestResult.get_ratio() < movie.get_ratio():
+                    if bestResult.get_title_ratio() < movie.get_title_ratio():
                         bestResult = movie
 
-            if bestResult.get_ratio() > 0.5:
+            if bestResult.get_title_ratio() > 0.5:
                 return bestResult
             else:
                 return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
-    class ImdbFoundMovie:
-        class Result:
-            MATCH = 'match'
-            NO_MATCH = 'no_match'
-            BAD_MATCH = 'bad_match'
-
-        def __init__(self, code=None, title=None, year=None, ratio=None, result=Result.MATCH, url=None):
-            if result != self.Result.MATCH:
-                if code is not None:
-                    assert isinstance(url, str) and url.startswith('http')
-                    pass
-                assert code is None
-                assert title is None
-                assert year is None
-                if result == self.Result.BAD_MATCH:
-                    assert ratio == None
-            self.__code = code
-            self.__title = title
-            self.__year = year
-            self.__ratio = ratio
-            self.__result = result
-            self.__url = url
-            pass
-
-        def get_result(self):
-            return self.__result
-
-        def get_code(self):
-            return self.__code
-
-        def get_code_decoded(self):
-            return self.__code.decode()
-
-        def get_title(self):
-            return self.__title
-
-        def get_year(self):
-            return self.__year
-
-        def get_ratio(self):
-            return self.__ratio
-
-        def is_no_match(self):
-            return self.__result == self.Result.NO_MATCH
-
-        def is_bad_match(self):
-            return self.__result == self.Result.BAD_MATCH
-
-        def get_url(self):
-            return self.__url
-
-    def __found_movie_from_movie_dom_element(self, movie, mTitle):
-        pass
+    def __found_movie_from_movie_dom_element(self, movie, mTitle, mYear):
         description = movie.getElementsByTagName("Description")
         for a in description:
             if (a.childNodes[0].nodeValue[:4]).isnumeric:
@@ -262,24 +268,29 @@ class IMDBhelper:
         movieFoundCode = movie.getAttribute("id")
 
         titleRatio = sDiff(None, mTitle, movieFoundTitle).ratio()
+        year_diff = int(movieFoundYear) - int(mYear)
 
         # print("API: " + str(movieFoundTitle) + " | " + str(movieFoundYear) + " | " + str(movieFoundCode) + " | Ratio: " + str(titleRatio))
-        uuu = self.ImdbFoundMovie(code=movieFoundCode, title=movieFoundTitle, year=movieFoundYear,
-                                  ratio=titleRatio, url=self.getMovieUrl(movieFoundCode))
-        return uuu
+        found_movie = self.ImdbFoundMovie(code=movieFoundCode, title=movieFoundTitle, year=movieFoundYear,
+                                          title_ratio=titleRatio, url=self.getMovieUrl(movieFoundCode),
+                                          year_diff=year_diff)
+        return found_movie
+
+    def __get_best_match_from_2(self, left, right):
+        pass
 
     def __get_best_match(self, found_movies, mYear):
         # Get the best match
-        bestResult = self.ImdbFoundMovie(ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
+        bestResult = self.ImdbFoundMovie(title_ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
         for movie in found_movies:
             assert isinstance(movie, self.ImdbFoundMovie)
-            if abs(int(movie.get_year()) - int(mYear)) <= 1:
-                if bestResult.get_ratio() < movie.get_ratio():
+            a = self.__get_best_match_from_2(bestResult, movie)
+            if abs(movie.get_year_diff()) <= 1:
+                if bestResult.get_title_ratio() < movie.get_title_ratio():
                     bestResult = movie
 
-        if bestResult.get_ratio() > 0.5:
+        if bestResult.get_title_ratio() > 0.5:
             return bestResult
-
         else:
             # This is a very optimistic way of think, but for my movie list it works nice.
             if len(found_movies) > 0:
@@ -299,15 +310,15 @@ class IMDBhelper:
         urlAdr = self.IMDBbyTitleAPI + sUrlAdd
 
         intento = 0
-        while intento < MAX_RETRY:
+        webResponse = None
+        while webResponse is None:
             try:
                 webResponse = self.webSession.open(urlAdr)
-                intento = 99
             except:
-                intento = intento + 1
-        if intento == MAX_RETRY:
-            print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
-            return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+                intento += 1
+                if intento >= MAX_RETRY:
+                    print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
+                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
         urlHTML = webResponse.read()
         # urlHTML = unicode(urlHTML, 'utf-8')
@@ -316,7 +327,7 @@ class IMDBhelper:
         movies_dom_elements = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
 
         for movie_dom_element in movies_dom_elements:
-            found_movie = self.__found_movie_from_movie_dom_element(movie_dom_element, mTitle)
+            found_movie = self.__found_movie_from_movie_dom_element(movie_dom_element, mTitle, mYear)
             assert isinstance(found_movie, self.ImdbFoundMovie)
             found_movies.append(found_movie)
 
@@ -353,3 +364,6 @@ class IMDBhelper:
         assert len(code) == 9
         assert code.startswith('tt')
         return 'http://www.imdb.com/title/{}/'.format(code)
+
+    def get_from_code(self, code):
+        raise NotImplementedError()
