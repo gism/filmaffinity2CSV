@@ -375,3 +375,13 @@ class IMDBhelper:
                                   result=self.ImdbFoundMovie.Result.FORCED_MATCH,
                                   url=self.getMovieUrl(code))
         return res
+
+    def match_alg_2(self, title, year):
+        imdb = self
+        imdbID = imdb.getMovieCodeByAPI(title, year)
+        if imdbID.is_bad_match():
+            imdbID = imdb.getMovieCode(title, year)
+        if imdbID.is_bad_match():
+            t = re.sub('\([\w\W]*?\)', '', title).strip()
+            imdbID = imdb.getMovieCode(t, year)
+        return imdbID

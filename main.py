@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import codecs
-import re
 import sys
 import time
-
 from tabulate import tabulate
+
+from filmaffinity2IMDB.match import match_algorithm
 
 import faHelper
 import imdbHelper
@@ -138,9 +138,6 @@ class MatchedMoviesList:
         return table_notVoted
 
 
-hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416'}
-
-
 def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
     assert isinstance(queue, CountingQueue)
     while True:
@@ -149,23 +146,12 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
             queue.task_done()
             break
         assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
-        fa_id = current_fa_movie.get_id()
-        if fa_id == '809297':
-            pass
-        imdbID = imdb.getMovieCodeByAPI(current_fa_movie.get_title(), current_fa_movie.get_year())
-        if imdbID.is_bad_match():
-            imdbID = imdb.getMovieCode(current_fa_movie.get_title(), current_fa_movie.get_year())
-        if imdbID.is_bad_match():
-            t = re.sub('\([\w\W]*?\)', '', current_fa_movie.get_title()).strip()
-            imdbID = imdb.getMovieCode(t, current_fa_movie.get_year())
 
-        use_hard_coded_matches = True
-        if use_hard_coded_matches:
-            if fa_id in hard_coded_matches:
-                imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
+        imdbID = match_algorithm(imdb, current_fa_movie)
 
         if imdbID.is_bad_match() or imdbID.get_code() == None:
             imdbNotFound.append(current_fa_movie)
+
         print("[Match IMDB] tt" + current_fa_movie.get_id(), "is: ", current_fa_movie.get_title(),
               " (" + current_fa_movie.get_year() + ")")
 

@@ -93,9 +93,8 @@ class FAhelper:
         if match:
             userID = match.group(1)
         else:
-            print(
+            raise NotImplementedError(
                 "ERROR FOUND: change regular expression at login() for user ID. Probably FA changed web page structure")
-            sys.exit("Error happens, check log.")
 
         self.userId = userID
 
