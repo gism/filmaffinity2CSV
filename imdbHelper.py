@@ -24,9 +24,6 @@ class IMDBhelper:
     IMDBbyTitleAPI = "http://www.imdb.com/xml/find?xml=1&nr=1&tt=on&"
     IMDBurlCaptcha = "https://secure.imdb.com/widget/captcha?type="
 
-    cookiejar = None
-    webSession = None
-
     def __init__(self):
         self.userName = ""
         self.userPass = ""
@@ -103,10 +100,11 @@ class IMDBhelper:
             MATCH = 'match'
             NO_MATCH = 'no_match'
             BAD_MATCH = 'bad_match'
+            FORCED_MATCH = 'forced_match'
 
         def __init__(self, code=None, title=None, year=None, title_ratio=None, result=Result.MATCH, url=None,
                      year_diff=None):
-            if result != self.Result.MATCH:
+            if result != self.Result.MATCH and result != self.Result.FORCED_MATCH:
                 if code is not None:
                     assert isinstance(url, str) and url.startswith('http')
                     pass
@@ -254,6 +252,7 @@ class IMDBhelper:
                 return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
     def __found_movie_from_movie_dom_element(self, movie, mTitle, mYear):
+        assert isinstance(movie, minidom.Element)
         description = movie.getElementsByTagName("Description")
         for a in description:
             if (a.childNodes[0].nodeValue[:4]).isnumeric:
@@ -360,10 +359,19 @@ class IMDBhelper:
             return -1
 
     def getMovieUrl(self, code):
-        assert isinstance(code, unicode)
+        assert isinstance(code, (unicode, str))
         assert len(code) == 9
         assert code.startswith('tt')
         return 'http://www.imdb.com/title/{}/'.format(code)
 
     def get_from_code(self, code):
-        raise NotImplementedError()
+        url = 'http://www.omdbapi.com/?i={}&plot=full&r=json'.format(code)
+        webResponse = self.webSession.open(url)
+
+        html = webResponse.read()
+        import json
+        jojo = json.loads(html)
+        res = self.ImdbFoundMovie(code=code, title=jojo['Title'], year=jojo['Year'],
+                                  result=self.ImdbFoundMovie.Result.FORCED_MATCH,
+                                  url=self.getMovieUrl(code))
+        return res

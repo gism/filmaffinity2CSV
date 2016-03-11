@@ -138,7 +138,7 @@ class MatchedMoviesList:
         return table_notVoted
 
 
-hard_coded_matches = {'809297': 'tt0068646'}
+hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416'}
 
 
 def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
@@ -159,7 +159,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
             t = re.sub('\([\w\W]*?\)', '', current_fa_movie.get_title()).strip()
             imdbID = imdb.getMovieCode(t, current_fa_movie.get_year())
 
-        use_hard_coded_matches = False
+        use_hard_coded_matches = True
         if use_hard_coded_matches:
             if fa_id in hard_coded_matches:
                 imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
