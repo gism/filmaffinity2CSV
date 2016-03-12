@@ -8,7 +8,7 @@ def match_algorithm(imdb, current_fa_movie):
     fa_id = current_fa_movie.get_id()
     if fa_id == '809297':
         pass
-    imdbID = imdb.match_alg_2(current_fa_movie.get_title(), current_fa_movie.get_year())
+    imdbID = imdb.match_algorithm(current_fa_movie.get_title(), current_fa_movie.get_year())
 
     use_hard_coded_matches = True
     if use_hard_coded_matches:

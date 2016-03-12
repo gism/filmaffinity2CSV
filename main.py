@@ -4,8 +4,7 @@ import codecs
 import sys
 import time
 from tabulate import tabulate
-
-from filmaffinity2IMDB.match import match_algorithm
+import match
 
 import faHelper
 import imdbHelper
@@ -147,7 +146,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
             break
         assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
 
-        imdbID = match_algorithm(imdb, current_fa_movie)
+        imdbID = match.match_algorithm(imdb, current_fa_movie)
 
         if imdbID.is_bad_match() or imdbID.get_code() == None:
             imdbNotFound.append(current_fa_movie)

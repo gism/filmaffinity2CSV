@@ -9,20 +9,19 @@ import cookielib
 import urllib
 import urllib2
 
-WORKERS = 4  # Mutli-Thread workers
-MAX_RETRY = 10
-
 
 class IMDBhelper:
     """Clase para ayudar a bajar la informacion de imdb"""
 
     # IMDB URL set.
-    IMDBurlLogin = "https://secure.imdb.com/register-imdb/login#"
-    IMDBvotedPrefix = "http://www.imdb.com/user/ur5741926/ratings?start="
+
+    MAX_RETRY = 10
+    Imdbcom = 'imdb.com'
+    IMDBurlLogin = "https://secure.{}/register-imdb/login#".format(Imdbcom)
+    IMDBvotedPrefix = "http://www.{}/user/ur5741926/ratings?start=".format(Imdbcom)
     IMDBvotedSufix = "&view=detail&sort=title:asc&defaults=1&my_ratings=restrict&scb=0.28277816087938845"
-    IMDBakas = "http://akas.imdb.com/"
-    IMDBbyTitleAPI = "http://www.imdb.com/xml/find?xml=1&nr=1&tt=on&"
-    IMDBurlCaptcha = "https://secure.imdb.com/widget/captcha?type="
+    IMDBbyTitleAPI = "http://www.{}/xml/find?xml=1&nr=1&tt=on&".format(Imdbcom)
+    IMDBurlCaptcha = "https://secure.{}/widget/captcha?type=".format(Imdbcom)
 
     def __init__(self):
         self.userName = ""
@@ -44,13 +43,13 @@ class IMDBhelper:
 
     def login(self):
         intento = 0
-        while intento < MAX_RETRY:
+        while intento < self.MAX_RETRY:
             try:
                 webResponse = self.webSession.open(self.IMDBurlLogin)
                 intento = 99
             except:
                 intento = intento + 1
-        if intento == MAX_RETRY:
+        if intento == self.MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdbHelper.login()")
         else:
             html = webResponse.read()
@@ -152,21 +151,36 @@ class IMDBhelper:
         def get_year_diff(self):
             return self.__year_diff
 
+        def could_match(self):
+            if self.get_year_diff() > 1:
+                return False
+            if self.get_title_ratio() <= 0.5:
+                return False
+            return True
+
+        def get_best_match_from_2(self, right):
+            left = self
+            if left.get_title_ratio() < right.get_title_ratio():
+                return right
+            else:
+                return left
+
     def getMovieCode(self, mTitle, mYear):
 
+        IMDBakas = "http://akas.{}/".format(self.Imdbcom)
         findList = []
 
         sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8'), 's': 'all'})
-        urlAdr = self.IMDBakas + "find?" + sUrlAdd
+        urlAdr = IMDBakas + "find?" + sUrlAdd
 
         intento = 0
-        while intento < MAX_RETRY:
+        while intento < self.MAX_RETRY:
             try:
                 webResponse = self.webSession.open(urlAdr)
                 intento = 99
             except:
                 intento = intento + 1
-        if intento == MAX_RETRY:
+        if intento == self.MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdb.getMovieCode() - " + mTitle + "(" + mYear + ")")
             return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
@@ -254,10 +268,12 @@ class IMDBhelper:
     def __found_movie_from_movie_dom_element(self, movie, mTitle, mYear):
         assert isinstance(movie, minidom.Element)
         description = movie.getElementsByTagName("Description")
+        assert len(description) == 1
         for a in description:
-            if (a.childNodes[0].nodeValue[:4]).isnumeric:
+            juju = a.childNodes[0].nodeValue[:4]
+            if True or juju.isnumeric():
                 # Some times isnumeric is not working ¿unicode type problem?
-                sYear = a.childNodes[0].nodeValue[:4]
+                sYear = juju
                 sYear = filter(type(sYear).isdigit, sYear)
                 sYear = "0" + sYear
                 year = int(sYear)
@@ -275,32 +291,25 @@ class IMDBhelper:
                                           year_diff=year_diff)
         return found_movie
 
-    def __get_best_match_from_2(self, left, right):
-        pass
-
     def __get_best_match(self, found_movies, mYear):
         # Get the best match
         bestResult = self.ImdbFoundMovie(title_ratio=0, result=self.ImdbFoundMovie.Result.NO_MATCH)
         for movie in found_movies:
             assert isinstance(movie, self.ImdbFoundMovie)
-            a = self.__get_best_match_from_2(bestResult, movie)
-            if abs(movie.get_year_diff()) <= 1:
-                if bestResult.get_title_ratio() < movie.get_title_ratio():
-                    bestResult = movie
+            if movie.get_code() == "tt0970416":
+                pass
+            bestResult = bestResult.get_best_match_from_2(movie)
 
-        if bestResult.get_title_ratio() > 0.5:
+        if bestResult.could_match():
             return bestResult
-        else:
-            # This is a very optimistic way of think, but for my movie list it works nice.
-            if len(found_movies) > 0:
-                if str(found_movies[0].get_year()) == mYear:
-                    return found_movies[0]
-                else:
-                    # No result.
-                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
-            else:
-                # No result.
-                return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+
+        # This is a very optimistic way of think, but for my movie list it works nice.
+        if len(found_movies) > 0:
+            if str(found_movies[0].get_year()) == mYear:
+                return found_movies[0]
+
+        # No result.
+        return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
     def getMovieCodeByAPI(self, mTitle, mYear):
         found_movies = []
@@ -315,7 +324,7 @@ class IMDBhelper:
                 webResponse = self.webSession.open(urlAdr)
             except:
                 intento += 1
-                if intento >= MAX_RETRY:
+                if intento >= self.MAX_RETRY:
                     print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
                     return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
@@ -337,14 +346,6 @@ class IMDBhelper:
         webResponse = self.webSession.open(urlAdr)
 
         html = webResponse.read()
-
-        # OLD CODE:
-        # pattern = re.compile (mCode + '\/vote\?v='+ str(mVote) +'&k=(.*?)"')  
-        # iterator = pattern.finditer(html)
-
-        # for element in iterator:
-        #     voteHash = element.group(1)
-        # urlAdr = self.IMDBakas + "title/" + mCode + "/vote?v=" + str(mVote) + "&k=" + voteHash
 
         pattern = re.compile('<input type="hidden" name="k" value="([\w\W]+?)">')
         matches = pattern.findall(html)
@@ -376,7 +377,7 @@ class IMDBhelper:
                                   url=self.getMovieUrl(code))
         return res
 
-    def match_alg_2(self, title, year):
+    def match_algorithm(self, title, year):
         imdb = self
         imdbID = imdb.getMovieCodeByAPI(title, year)
         if imdbID.is_bad_match():

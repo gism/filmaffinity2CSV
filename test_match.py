@@ -18,6 +18,6 @@ class TestMovieMatch(unittest.TestCase):
             extraInfo = faHelp.getMovieInfoById(fa_code)
             current_fa_movie = extraInfo
             assert isinstance(current_fa_movie, faHelper.FAhelper.FaMovieExtraInfo)
-            imdbID = imdb.match_alg_2(current_fa_movie.movieTitle, current_fa_movie.movieYear)
+            imdbID = imdb.match_algorithm(current_fa_movie.movieTitle, current_fa_movie.movieYear)
             assert imdbID.get_code() == imdb_code
             pass
