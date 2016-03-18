@@ -18,6 +18,21 @@ class TestMovieMatch(unittest.TestCase):
             extraInfo = faHelp.getMovieInfoById(fa_code)
             current_fa_movie = extraInfo
             assert isinstance(current_fa_movie, faHelper.FAhelper.FaMovieExtraInfo)
+            aaa = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
             imdbID = imdb.match_algorithm(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-            assert imdbID.get_code() == imdb_code
+            if False:
+                assert imdbID.get_code() == imdb_code
+            assert aaa.get_code() == imdb_code
+            pass
+
+    def test_2(self):
+        fa = faHelper.FAhelper()
+        fa.getDumpAllVotes()
+        fa_movies = fa.getMoviesDumped()
+        imdb = imdbHelper.IMDBhelper()
+        for current_fa_movie in fa_movies:
+            imdbID = match.match_algorithm(imdb, current_fa_movie)
+
+            aaa = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
+            assert imdbID.get_code() == aaa.get_code()
             pass

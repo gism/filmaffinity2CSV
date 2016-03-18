@@ -137,6 +137,20 @@ class MatchedMoviesList:
         return table_notVoted
 
 
+def movie_match(current_fa_movie, imdb, match_results, imdbNotFound):
+    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
+
+    imdbID = match.match_algorithm(imdb, current_fa_movie)
+
+    if imdbID.is_bad_match() or imdbID.get_code() == None:
+        imdbNotFound.append(current_fa_movie)
+
+    print("[Match IMDB] tt" + current_fa_movie.get_id(), "is: ", current_fa_movie.get_title(),
+          " (" + current_fa_movie.get_year() + ")")
+
+    match_results.append(MovieMatch(current_fa_movie, imdbID))
+
+
 def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
     assert isinstance(queue, CountingQueue)
     while True:
@@ -144,17 +158,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
         if current_fa_movie is None:
             queue.task_done()
             break
-        assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
-
-        imdbID = match.match_algorithm(imdb, current_fa_movie)
-
-        if imdbID.is_bad_match() or imdbID.get_code() == None:
-            imdbNotFound.append(current_fa_movie)
-
-        print("[Match IMDB] tt" + current_fa_movie.get_id(), "is: ", current_fa_movie.get_title(),
-              " (" + current_fa_movie.get_year() + ")")
-
-        match_results.append(MovieMatch(current_fa_movie, imdbID))
+        movie_match(current_fa_movie, imdb, match_results, imdbNotFound)
         if queue.get_count() % 10 == 0:
             print("Task progress: " + queue.get_progress_desc())
         queue.task_done()
@@ -241,7 +245,7 @@ class ConfigManager:
         return backuptoimdb
 
 
-def copy_votes_from_fa_to_imdb(imdb, match_results, fa_user_id):
+def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
     imdbNotVoted = MatchedMoviesList()
     # Option A: You want to write each time User and Password:
     sUser, sPassword = ConfigManager.get_imdb_user_pass()
@@ -258,29 +262,29 @@ def copy_votes_from_fa_to_imdb(imdb, match_results, fa_user_id):
 
     if len(imdbNotVoted) > 0:
         print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
-              ' (fa: ' + fa_user_id + ')')
-        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa_user_id)
+              ' (' + postfix + ')')
+        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", postfix)
         print("Movies not voted:")
         print(table_notVoted)
 
 
-def match_fa_with_imdb(fa, start_time):
+def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded=True):
     match_results = MatchedMoviesList()
     imdb = imdbHelper.IMDBhelper()
-
-    # Array para las peliculas que presenten peliculas
     imdbNotFound = FAMovieList()
 
-    # Cola con las pelis para obterner el codigo de pelicula en IMDB
     print('\nAbout to get imdb ids...\n')
 
-    fa_movies = fa.getMoviesDumped()
-    createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
-                        elements=fa_movies)
+    if threaded:
+        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
+                            elements=fa_movies)
+    else:
+        for current_fa_movie in fa_movies:
+            movie_match(current_fa_movie, imdb, match_results, imdbNotFound)
 
     if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-        table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", '-fauser' + fa.getUserID())
+        table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", report_postfix)
         print("Movies not found:")
         print(table_notFound)
 
@@ -288,7 +292,7 @@ def match_fa_with_imdb(fa, start_time):
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 
     if ConfigManager.copy_votes_to_imdb():
-        copy_votes_from_fa_to_imdb(imdb, match_results, fa.getUserID())
+        copy_votes_from_fa_to_imdb(imdb, match_results, report_postfix)
     return match_results
 
 
@@ -320,11 +324,12 @@ def main():
     fa.getDumpAllVotes()
 
     if ConfigManager.match_with_imdb():
-        match_results = match_fa_with_imdb(fa, start_time)
+        match_results = match_fa_with_imdb(fa.getMoviesDumped(), start_time, '-fauser' + fa.getUserID())
         match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
     print("\r\nDONE")
 
 
-main()
+if __name__ == "__main__":
+    main()
