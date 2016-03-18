@@ -311,8 +311,7 @@ def main():
 
     fa = faHelper.FAhelper()
     sUser, sPassword = ConfigManager.get_fa_user_pass()
-    fa.setUser(sUser, sPassword)
-    fa.login()
+    fa.login(sUser, sPassword)
     if fa.loginSucceed():
         print("Login succeed")
     else:

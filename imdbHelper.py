@@ -109,11 +109,12 @@ class IMDBhelper:
                 except:
                     raise
                 assert search_year is not None and isinstance(search_year, unicode) and len(search_year) > 0
-            if result != self.Result.MATCH and result != self.Result.FORCED_MATCH:
+
+            if result == self.Result.NO_MATCH or result == self.Result.BAD_MATCH:
                 assert code is None
                 assert title is None
                 assert year is None
-            elif result == self.Result.MATCH:
+            elif result == self.Result.MATCH or result == self.Result.FORCED_MATCH:
                 assert code is not None
                 if code.startswith('tt'):
                     code = code[2:]

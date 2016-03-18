@@ -27,12 +27,20 @@ class TestMovieMatch(unittest.TestCase):
 
     def test_2(self):
         fa = faHelper.FAhelper()
+        import main
+        sUser, sPassword = main.ConfigManager.get_fa_user_pass()
+        fa.login(sUser, sPassword)
         fa.getDumpAllVotes()
         fa_movies = fa.getMoviesDumped()
         imdb = imdbHelper.IMDBhelper()
+        count = 0
         for current_fa_movie in fa_movies:
             imdbID = match.match_algorithm(imdb, current_fa_movie)
 
             aaa = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-            assert imdbID.get_code() == aaa.get_code()
+            try:
+                assert imdbID.get_code() == aaa.get_code()
+            except:
+                raise
+            count += 1
             pass

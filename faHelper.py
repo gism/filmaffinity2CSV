@@ -53,8 +53,6 @@ class FAhelper:
     urlMain = "http://www.filmaffinity.com/en/main.php"
 
     def __init__(self):
-        self.__userName = ""
-        self.__userPass = ""
         self.userId = "0"
 
         # Enable cookie support for urllib2
@@ -64,18 +62,12 @@ class FAhelper:
         self.__faMovies = []
         self.__faMoviesFilled = []
 
-    def setUser(self, userName, userPass):
-        self.__userName = userName
-        self.__userPass = userPass
-
-    def getUser(self):
-        return self.__userName, self.__userPass
-
     def setUserID(self, userId):
         self.userId = str(userId)
 
-    def login(self):
-        user, password = self.getUser()
+    def login(self, user, password):
+        self.__userName = user
+        self.__userPass = password
 
         self.__webSession.open(self.urlLogin)
 
