@@ -206,7 +206,7 @@ class IMDBhelper:
 
         def getMovieUrl(self):
             assert self.__result == self.Result.MATCH
-            code = self.__code
+            code = self.get_code()
             assert isinstance(code, (unicode, str))
             assert len(code) == 9
             assert code.startswith('tt')
@@ -282,7 +282,6 @@ class IMDBhelper:
                     movieTitle = movieTitle[badCapture + 3:]
                     badCapture = movieTitle.find(';">')
 
-                titleRatio = sDiff(None, mTitle, movieTitle).ratio()
                 findList.append(
                     self.ImdbFoundMovie(code=movieCode, title=movieTitle, year=movieYear, search_title=mTitle,
                                         search_year=mYear))
@@ -298,16 +297,9 @@ class IMDBhelper:
                 akaYear = akaResult.group(2)
                 akaMovieCode = akaResult.group(1)
 
-                titleRatio = sDiff(None, mTitle, akaTitle).ratio()
-
-                if akaTitle.find(mTitle) != -1:
-                    titleRatio2 = 0.6
-                else:
-                    titleRatio2 = 0
-
-                titleRatio = max(titleRatio, titleRatio2)
                 findList.append(
-                    self.ImdbFoundMovie(code=akaMovieCode, title=akaTitle, year=akaYear, title_ratio=titleRatio))
+                    self.ImdbFoundMovie(code=akaMovieCode, title=akaTitle, year=akaYear, search_title=mTitle,
+                                        search_year=mYear))
 
             # Get the best match
             bestResult = self.__get_best_match(findList, mTitle, mYear)
