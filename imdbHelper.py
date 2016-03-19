@@ -42,53 +42,49 @@ class IMDBhelper:
         self.userId = str(userId)
 
     def login(self):
-        intento = 0
-        while intento < self.MAX_RETRY:
-            try:
-                webResponse = self.webSession.open(self.IMDBurlLogin)
-                intento = 99
-            except:
-                intento = intento + 1
-        if intento == self.MAX_RETRY:
+
+        webResponse = self.__webSession_open_retry(self.IMDBurlLogin, '')
+        if webResponse is None:
             print("ERROR FOUND: Connection failed at imdbHelper.login()")
+            return
+
+        html = webResponse.read()
+        html = unicode(html, 'utf-8')
+
+        # Get captcha URL
+        pattern = re.compile('<img src="\/widget\/captcha\?type=([\w\W]+?)"')
+        match = pattern.search(html)
+        if match:
+            captchaURL = self.IMDBurlCaptcha + match.group(1)
         else:
-            html = webResponse.read()
-            html = unicode(html, 'utf-8')
+            print(
+                "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
+            sys.exit("Error happens, check log.")
 
-            # Get captcha URL
-            pattern = re.compile('<img src="\/widget\/captcha\?type=([\w\W]+?)"')
-            match = pattern.search(html)
-            if match:
-                captchaURL = self.IMDBurlCaptcha + match.group(1)
-            else:
-                print(
-                    "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
-                sys.exit("Error happens, check log.")
+        print("Type captcha form image: " + captchaURL)
+        capcha = raw_input('>')
 
-            print("Type captcha form image: " + captchaURL)
-            capcha = raw_input('>')
+        pattern = re.compile('<input type="hidden" name="([\d\w]+)" value="([\d\w]+)" \/>')
+        match = pattern.finditer(html)
 
-            pattern = re.compile('<input type="hidden" name="([\d\w]+)" value="([\d\w]+)" \/>')
-            match = pattern.finditer(html)
+        if match:
+            for result in match:
+                chsm1 = result.group(1)
+                chsm2 = result.group(2)
 
-            if match:
-                for result in match:
-                    chsm1 = result.group(1)
-                    chsm2 = result.group(2)
+            dataForm = {chsm1: chsm2, "login": self.userName, "password": self.userPass, "captcha_answer": capcha}
+        else:
+            print(
+                "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
+            sys.exit("Error happens, check log.")
 
-                dataForm = {chsm1: chsm2, "login": self.userName, "password": self.userPass, "captcha_answer": capcha}
-            else:
-                print(
-                    "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
-                sys.exit("Error happens, check log.")
+        dataPost = urllib.urlencode(dataForm)
+        request = urllib2.Request("https://secure.imdb.com/register-imdb/login#", dataPost)
 
-            dataPost = urllib.urlencode(dataForm)
-            request = urllib2.Request("https://secure.imdb.com/register-imdb/login#", dataPost)
+        webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
 
-            webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
-
-            if not 'id' in [cookie.name for cookie in self.cookiejar]:
-                print("Login error!: Incorrect IMDB User or password, please try again.")
+        if not 'id' in [cookie.name for cookie in self.cookiejar]:
+            print("Login error!: Incorrect IMDB User or password, please try again.")
 
     # returns 1 when login is succeed
     def loginSucceed(self):
@@ -216,23 +212,29 @@ class IMDBhelper:
             assert url is not None and isinstance(url, str) and url.startswith('http')
             return url
 
-    def getMovieCode(self, mTitle, mYear):
+    def __webSession_open_retry(self, urlAdr, sufix):
+        intento = 0
+        webResponse = None
+        while webResponse is None:
+            try:
+                webResponse = self.webSession.open(urlAdr)
+            except:
+                intento += 1
+                if intento >= self.MAX_RETRY:
+                    print("ERROR FOUND: Connection failed at imdb.__webSession_open_retry() - " + sufix)
+                    return
 
+        return webResponse
+
+    def getMovieCode(self, mTitle, mYear):
         IMDBakas = "http://akas.{}/".format(self.Imdbcom)
         findList = []
 
         sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8'), 's': 'all'})
         urlAdr = IMDBakas + "find?" + sUrlAdd
 
-        intento = 0
-        while intento < self.MAX_RETRY:
-            try:
-                webResponse = self.webSession.open(urlAdr)
-                intento = 99
-            except:
-                intento = intento + 1
-        if intento == self.MAX_RETRY:
-            print("ERROR FOUND: Connection failed at imdb.getMovieCode() - " + mTitle + "(" + mYear + ")")
+        webResponse = self.__webSession_open_retry(urlAdr, mTitle + "(" + mYear + ")")
+        if webResponse is None:
             return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
         urlAdrRed = webResponse.geturl()
@@ -365,16 +367,9 @@ class IMDBhelper:
         sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8')})
         urlAdr = self.IMDBbyTitleAPI + sUrlAdd
 
-        intento = 0
-        webResponse = None
-        while webResponse is None:
-            try:
-                webResponse = self.webSession.open(urlAdr)
-            except:
-                intento += 1
-                if intento >= self.MAX_RETRY:
-                    print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
-                    return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
+        webResponse = self.__webSession_open_retry(urlAdr, mTitle + " (" + mYear + ")")
+        if webResponse is None:
+            return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH)
 
         urlHTML = webResponse.read()
         # urlHTML = unicode(urlHTML, 'utf-8')
@@ -433,9 +428,14 @@ class IMDBhelper:
         return imdbID
 
     def match_algorithm_new(self, stitle, syear):
+        if stitle == u'Spanish Affair 2':
+            pass
         from imdb import IMDb
         ia = IMDb()
-        res = ia.search_movie(stitle)
+        try:
+            res = ia.search_movie(stitle)
+        except:
+            return
         for a in res:
             kind = a['kind']
             title = a['title']
@@ -444,6 +444,9 @@ class IMDBhelper:
             pass
             found_movie = self.ImdbFoundMovie(code=movie_id, title=title, year=year, search_title=stitle,
                                               result=self.ImdbFoundMovie.Result.MATCH, search_year=syear)
-            return found_movie
+            if abs(found_movie.get_year_diff()) <= 1:
+                return found_movie
+            pass
+        if not stitle == u'Spanish Affair 2':
             pass
         pass

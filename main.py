@@ -137,10 +137,33 @@ class MatchedMoviesList:
         return table_notVoted
 
 
+# these movies failed with first algorithm. We will try ti build an algorithm that does not make this failures.
+hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416', '346540': 'tt0099674',
+                      '731920': 'tt0067800', '670216': 'tt2562232', '846099': 'tt3659388', '224676': 'tt3605418',
+                      '264280': 'tt3626742', '545095': 'tt1971325', '220999': 'tt2668134', '890034': 'tt0756683',
+                      '540303': 'tt3276924', '961632': 'tt3510480', '695552': 'tt0050083', '690533': 'tt1524930',
+                      '652874': 'tt3495184', '375978': 'tt2089050', '701892': 'tt0078788', '224676': 'tt3605418',
+                      '695552': 'tt0050083'}
+
+
+def match_algorithm(imdb, current_fa_movie):
+    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
+    fa_id = current_fa_movie.get_id()
+    if fa_id == '809297':
+        pass
+    imdbID = imdb.match_algorithm(current_fa_movie.get_title(), current_fa_movie.get_year())
+
+    use_hard_coded_matches = True
+    if use_hard_coded_matches:
+        if fa_id in hard_coded_matches:
+            imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
+    return imdbID
+
+
 def movie_match(current_fa_movie, imdb, match_results, imdbNotFound):
     assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
 
-    imdbID = match.match_algorithm(imdb, current_fa_movie)
+    imdbID = match_algorithm(imdb, current_fa_movie)
 
     if imdbID.is_bad_match() or imdbID.get_code() == None:
         imdbNotFound.append(current_fa_movie)
