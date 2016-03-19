@@ -413,9 +413,12 @@ class IMDBhelper:
 
         html = webResponse.read()
         import json
-        jojo = json.loads(html)
-        res = self.ImdbFoundMovie(code=code, title=jojo['Title'], year=jojo['Year'],
-                                  result=self.ImdbFoundMovie.Result.FORCED_MATCH)
+        json_response = json.loads(html)
+        try:
+            res = self.ImdbFoundMovie(code=code, title=json_response['Title'], year=int(json_response['Year']),
+                                      result=self.ImdbFoundMovie.Result.FORCED_MATCH)
+        except:
+            raise
         return res
 
     def match_algorithm(self, title, year):
