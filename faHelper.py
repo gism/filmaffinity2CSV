@@ -326,7 +326,7 @@ class FAhelper:
                 break  # reached end of queue
 
             faHelp.getDumpVotesPage(page)
-            print("Analyzing vote page: ", page)
+            print("Analyzing vote page: {}".format(page))
             queue.task_done()
 
     def __faFillMovieInfo(self, queue):
@@ -345,7 +345,7 @@ class FAhelper:
 
             faHelp.__faMoviesFilled.append(film)
 
-            print("[FA get all data] ", film.get_title())
+            print("[FA get all data] {}".format(film.get_title().encode('utf-8')))
             queue.task_done()
 
     def getDumpAllVotes(self):
