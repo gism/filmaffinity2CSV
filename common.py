@@ -1,5 +1,34 @@
+import datetime
 import threading
 import Queue
+
+
+def progress_format(total, current):
+    percent = 100 * current / float(total)
+    return '{}/{}={}%'.format(current, total, str(percent)[:5])
+    pass
+
+
+class Eta:
+    def __get_now(self):
+        return datetime.datetime.now()
+
+    def __init__(self, total=None):
+        self._total = total
+        self._init_time = self.__get_now()
+        pass
+
+    def set_current(self, current):
+        self._current = current
+
+    def set_total(self, total):
+        self._total = total
+
+    def format(self):
+        elapsed = (self.__get_now() - self._init_time)
+        tot_time = elapsed * self._total / self._current
+        pend_time = tot_time - elapsed
+        return '{} {}/{}'.format(progress_format(current=self._current, total=self._total), pend_time, tot_time)
 
 
 class CountingQueue(Queue.Queue):
@@ -8,6 +37,7 @@ class CountingQueue(Queue.Queue):
         Queue.Queue.__init__(self, maxsize)
         self.__mycount = 0
         self.__total = 0
+        self.__eta = Eta()
 
     def get(self):
         ret = Queue.Queue.get(self)
@@ -25,9 +55,10 @@ class CountingQueue(Queue.Queue):
         return self.__total
 
     def get_progress_desc(self):
-        queue = self
-        percent = queue.get_count() * 100 / float(queue.get_total())
-        return str(queue.get_count()) + "/" + str(queue.get_total()) + " (" + str(percent)[:5] + "%)"
+        self.__eta.set_total(self.__total)
+        self.__eta.set_current(self.__mycount)
+        formatted = self.__eta.format()
+        return formatted
 
 
 def createTrheadedQueue(target, args, elements):

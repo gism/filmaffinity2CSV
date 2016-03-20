@@ -1,6 +1,6 @@
 import unittest
 
-from main import Counters, algorithm_strict
+from main import Counters, match_algorithm_merge_strict
 
 import faHelper
 import imdbHelper
@@ -20,7 +20,7 @@ def algorithm_testing():
     imdb = imdbHelper.IMDBhelper()
     counters = Counters(len(fa_movies))
     for current_fa_movie in fa_movies:
-        algorithm_strict(imdb, current_fa_movie, counters)
+        match_algorithm_merge_strict(imdb, current_fa_movie, counters)
         counters.count += 1
         print(counters.format())
         pass

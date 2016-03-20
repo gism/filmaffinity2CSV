@@ -99,12 +99,12 @@ class IMDBhelper:
 
         def __init__(self, code=None, title=None, year=None, search_title=None, result=Result.MATCH,
                      search_year=None):
-            if result != self.Result.FORCED_MATCH:
-                try:
-                    assert search_title is not None and isinstance(search_title, unicode) and len(search_title) > 0
-                except:
-                    raise
-                assert search_year is not None and isinstance(search_year, unicode) and len(search_year) > 0
+
+            try:
+                assert search_title is not None and isinstance(search_title, unicode) and len(search_title) > 0
+            except:
+                raise
+            assert search_year is not None and isinstance(search_year, unicode) and len(search_year) > 0
 
             if result == self.Result.NO_MATCH or result == self.Result.BAD_MATCH:
                 assert code is None
@@ -163,7 +163,7 @@ class IMDBhelper:
             return self.__result == self.Result.BAD_MATCH
 
         def get_url(self):
-            return self.__url
+            return self.getMovieUrl()
 
         def get_year_diff(self):
             try:
@@ -205,7 +205,7 @@ class IMDBhelper:
                 return left
 
         def getMovieUrl(self):
-            assert self.__result == self.Result.MATCH
+            assert self.__result == self.Result.MATCH or self.__result == self.Result.FORCED_MATCH
             code = self.get_code()
             assert isinstance(code, (unicode, str))
             assert len(code) == 9
@@ -394,7 +394,7 @@ class IMDBhelper:
         except:
             return -1
 
-    def get_from_code(self, code):
+    def get_from_code(self, code, title, year):
         url = 'http://www.omdbapi.com/?i={}&plot=full&r=json'.format(code)
         webResponse = self.webSession.open(url)
 
@@ -403,7 +403,8 @@ class IMDBhelper:
         json_response = json.loads(html)
         try:
             res = self.ImdbFoundMovie(code=code, title=json_response['Title'], year=int(json_response['Year']),
-                                      result=self.ImdbFoundMovie.Result.FORCED_MATCH)
+                                      result=self.ImdbFoundMovie.Result.FORCED_MATCH, search_title=title,
+                                      search_year=year)
         except:
             raise
         return res

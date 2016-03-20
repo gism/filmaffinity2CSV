@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import codecs
-import datetime
 import sys
 import time
 from tabulate import tabulate
@@ -9,6 +8,7 @@ from tabulate import tabulate
 import faHelper
 import imdbHelper
 from common import CountingQueue, createTrheadedQueue
+from common import progress_format, Eta
 
 
 class FAMovieList:
@@ -47,7 +47,10 @@ class MovieMatch:
     def __init__(self, fa, imdb):
         assert isinstance(fa, faHelper.FAhelper.FAMovieData)
         self.__fa = fa
-        assert isinstance(imdb, imdbHelper.IMDBhelper.ImdbFoundMovie)
+        try:
+            assert imdb is None or isinstance(imdb, imdbHelper.IMDBhelper.ImdbFoundMovie)
+        except:
+            raise
         self.__imdb = imdb
 
     def fa(self):
@@ -56,15 +59,51 @@ class MovieMatch:
     def imdb(self):
         return self.__imdb
 
+    def __imdb_get_year(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_year()
+        else:
+            return None
+
+    def __imdb_get_title(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_title()
+        else:
+            return None
+
+    def __imdb_get_title_ratio(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_title_ratio()
+        else:
+            return None
+
+    def __imdb_get_result(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_result()
+        else:
+            return None
+
+    def __imdb_get_code(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_code()
+        else:
+            return None
+
+    def __imdb_get_url(self):
+        if self.__imdb is not None:
+            return self.__imdb.get_url()
+        else:
+            return None
+
     def report(self):
         fa_fields = self.__fa.report_attr_values()
         fa_fields_in_list = list(fa_fields)
-        fa_fields_in_list.insert(3, self.__imdb.get_year())
-        fa_fields_in_list.insert(2, self.__imdb.get_title())
-        fa_fields_in_list.insert(1, self.__imdb.get_title_ratio())
-        fa_fields_in_list.insert(1, self.__imdb.get_result())
-        fa_fields_in_list.insert(1, self.__imdb.get_code())
-        fa_fields_in_list.append(self.__imdb.get_url())
+        fa_fields_in_list.insert(3, self.__imdb_get_year())
+        fa_fields_in_list.insert(2, self.__imdb_get_title())
+        fa_fields_in_list.insert(1, self.__imdb_get_title_ratio())
+        fa_fields_in_list.insert(1, self.__imdb_get_result())
+        fa_fields_in_list.insert(1, self.__imdb_get_code())
+        fa_fields_in_list.append(self.__imdb_get_url())
         return fa_fields_in_list
 
     @staticmethod
@@ -150,45 +189,7 @@ hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 't
                       '968175': 'tt0378194', '495280': 'tt0499549', '893272': 'tt0099653', '489970': 'tt0903747',
                       '152408': 'tt4412362', '828416': 'tt0993846', '533016': 'tt0116996', '267203': 'tt2823088',
                       '520253': 'tt1951265', '524439': 'tt0266697', '837017': 'tt2089051', '971380': 'tt1375666',
-                      '453359': 'tt2170593'}
-
-
-def match_algorithm(imdb, current_fa_movie):
-    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
-    fa_id = current_fa_movie.get_id()
-    if fa_id == '809297':
-        pass
-    imdbID = imdb.match_algorithm(current_fa_movie.get_title(), current_fa_movie.get_year())
-
-    use_hard_coded_matches = True
-    if use_hard_coded_matches:
-        if fa_id in hard_coded_matches:
-            imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
-    return imdbID
-
-
-def progress_format(total, current):
-    return '{}/{}={}%'.format(current, total, 100 * current / total)
-    pass
-
-
-class Eta:
-    def __get_now(self):
-        return datetime.datetime.now()
-
-    def __init__(self, total):
-        self._total = total
-        self._init_time = self.__get_now()
-        pass
-
-    def set_current(self, current):
-        self._current = current
-
-    def format(self):
-        elapsed = (self.__get_now() - self._init_time)
-        tot_time = elapsed * self._total / self._current
-        pend_time = tot_time - elapsed
-        return '{} {}/{}'.format(progress_format(current=self._current, total=self._total), pend_time, tot_time)
+                      '453359': 'tt2170593', '375488': 'tt1502712'}
 
 
 class Counters:
@@ -205,7 +206,9 @@ class Counters:
                                                             progress_format(current=self.a2hits, total=self.count))
 
 
-def algorithm_strict(imdb, current_fa_movie, counters):
+def match_algorithm_merge_strict(imdb, current_fa_movie, counters):
+    if current_fa_movie.get_id() == '652874':
+        pass
     alg1 = imdb.match_algorithm(current_fa_movie.movieTitle, current_fa_movie.movieYear)
     hcmc = hard_coded_matches.get(current_fa_movie.movieID)
     alg2 = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
@@ -256,32 +259,61 @@ def algorithm_strict(imdb, current_fa_movie, counters):
         else:
             pass
 
+        if result == None:
+            result = imdb.get_from_code(hcmc, current_fa_movie.movieTitle, current_fa_movie.movieYear)
+
     pass
     return result
 
 
-def movie_match(current_fa_movie, imdb, match_results, imdbNotFound):
+def match_algorithm_1(imdb, current_fa_movie):
+    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
+    fa_id = current_fa_movie.get_id()
+    if fa_id == '809297':
+        pass
+    imdbID = imdb.match_algorithm(current_fa_movie.get_title(), current_fa_movie.get_year())
+
+    use_hard_coded_matches = True
+    if use_hard_coded_matches:
+        if fa_id in hard_coded_matches:
+            imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
+    return imdbID
+
+
+class Algorithms:
+    ALG1 = 'alg1'
+    ALG2 = 'alg2'
+    MERGESTRICT = 'mergestrict'
+    ALL = [ALG1, ALG2]
+
+
+def movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg):
     assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
 
-    imdbID = match_algorithm(imdb, current_fa_movie)
+    if alg == Algorithms.ALG1:
+        imdbID = match_algorithm_1(imdb, current_fa_movie)
+    elif alg == Algorithms.MERGESTRICT:
+        imdbID = match_algorithm_merge_strict(imdb, current_fa_movie, Counters(1))
+    else:
+        raise NotImplementedError()
 
-    if imdbID.is_bad_match() or imdbID.get_code() == None:
+    if imdbID is None or imdbID.is_bad_match() or imdbID.get_code() == None:
         imdbNotFound.append(current_fa_movie)
 
-    print("[Match IMDB] tt" + current_fa_movie.get_id(), "is: ", current_fa_movie.get_title(),
+    print("[Match IMDB] tt" + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
           " (" + current_fa_movie.get_year() + ")")
 
     match_results.append(MovieMatch(current_fa_movie, imdbID))
 
 
-def getImdbIdsThread(queue, imdb, imdbNotFound, match_results):
+def getImdbIdsThread(queue, imdb, imdbNotFound, match_results, alg):
     assert isinstance(queue, CountingQueue)
     while True:
         current_fa_movie = queue.get()
         if current_fa_movie is None:
             queue.task_done()
             break
-        movie_match(current_fa_movie, imdb, match_results, imdbNotFound)
+        movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
         if queue.get_count() % 10 == 0:
             print("Task progress: " + queue.get_progress_desc())
         queue.task_done()
@@ -367,6 +399,17 @@ class ConfigManager:
                 backuptoimdb = False
         return backuptoimdb
 
+    @classmethod
+    def algorithm(cls):
+        try:
+            import config
+
+            algorithm = config.algorithm
+        except:
+            msg = 'Witch algoritm do you wiant to use? {}:'.format(Algorithms.ALL)
+            algorithm = raw_input('\r\n{}:'.format(msg))
+        return algorithm
+
 
 def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
     imdbNotVoted = MatchedMoviesList()
@@ -391,19 +434,20 @@ def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
         print(table_notVoted)
 
 
-def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded=True):
+def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
     match_results = MatchedMoviesList()
     imdb = imdbHelper.IMDBhelper()
     imdbNotFound = FAMovieList()
 
     print('\nAbout to get imdb ids...\n')
 
+    alg = ConfigManager.algorithm()
     if threaded:
-        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results),
+        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results, alg),
                             elements=fa_movies)
     else:
         for current_fa_movie in fa_movies:
-            movie_match(current_fa_movie, imdb, match_results, imdbNotFound)
+            movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
 
     if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
@@ -441,12 +485,12 @@ def main():
         print("Error on login")
         sys.exit("Not possible to finish task with no login")
 
-    print("Your FA ID is: ", fa.getUserID())
+    print("Your FA ID is: {}".format(fa.getUserID()))
 
     fa.getDumpAllVotes()
 
     if ConfigManager.match_with_imdb():
-        match_results = match_fa_with_imdb(fa.getMoviesDumped(), start_time, '-fauser' + fa.getUserID())
+        match_results = match_fa_with_imdb(fa.getMoviesDumped(), start_time, '-fauser' + fa.getUserID(), threaded=True)
         match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
 
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))

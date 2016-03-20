@@ -5,3 +5,5 @@ matchwithimdb=True
 backuptoimdb = False
 imdb_user = "imdb_user"
 imdb_password = "imdb_password"
+# alg1 or mergestrict
+algorithm='mergestrict'
