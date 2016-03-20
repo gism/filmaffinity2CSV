@@ -9,6 +9,7 @@ import faHelper
 import imdbHelper
 from common import CountingQueue, createTrheadedQueue
 from common import progress_format, Eta
+import logging
 
 
 class FAMovieList:
@@ -327,12 +328,14 @@ def voteImdbThread(queue, imdb, imdbNotVoted):
             break
         assert isinstance(movie_match, MovieMatch)
         try:
-            if not movie_match.imdb().is_bad_match():
+            if not movie_match.imdb().bad_or_no_match():
                 imdb.voteMovie(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
         except:
+            msg = "ERROR: en pelicula {} {}".format(movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
             e = sys.exc_info()
+            logging.exception(msg)
             imdbNotVoted.append(movie_match)
-            print("ERROR: en pelicula", movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
+            print(msg)
         index = queue.get_count()
         if index % 10 == 0:
             print("Task progress: " + queue.get_progress_desc())

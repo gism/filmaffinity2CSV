@@ -141,7 +141,7 @@ class IMDBhelper:
             return 'tt' + self.__code
 
         def get_code_decoded(self):
-            return self.__code.decode()
+            return self.get_code().decode()
 
         def get_title(self):
             return self.__title
@@ -173,7 +173,7 @@ class IMDBhelper:
             return year_diff
 
         def could_match(self):
-            if self._bad_or_no_match():
+            if self.bad_or_no_match():
                 return False
             if self.get_year_diff() > 1:
                 return False
@@ -181,7 +181,7 @@ class IMDBhelper:
                 return False
             return True
 
-        def _bad_or_no_match(self):
+        def bad_or_no_match(self):
             left = self
             return left.is_bad_match() or left.is_no_match()
 
@@ -189,9 +189,9 @@ class IMDBhelper:
             assert isinstance(right, self.__class__)
             left = self
 
-            if left._bad_or_no_match() and not right._bad_or_no_match():
+            if left.bad_or_no_match() and not right.bad_or_no_match():
                 return right
-            elif not left._bad_or_no_match() and right._bad_or_no_match():
+            elif not left.bad_or_no_match() and right.bad_or_no_match():
                 return left
 
             if left.could_match() and not right.could_match():
