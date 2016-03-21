@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import codecs
+import logging
+import re
 import sys
 import time
 from tabulate import tabulate
@@ -9,7 +11,6 @@ import faHelper
 import imdbHelper
 from common import CountingQueue, createTrheadedQueue
 from common import progress_format, Eta
-import logging
 
 
 class FAMovieList:
@@ -177,134 +178,147 @@ class MatchedMoviesList:
         return table_notVoted
 
 
-# these movies failed with first algorithm. We will try ti build an algorithm that does not make this failures.
-hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416', '346540': 'tt0099674',
-                      '731920': 'tt0067800', '670216': 'tt2562232', '846099': 'tt3659388', '224676': 'tt3605418',
-                      '264280': 'tt3626742', '545095': 'tt1971325', '220999': 'tt2668134', '890034': 'tt0756683',
-                      '540303': 'tt3276924', '961632': 'tt3510480', '695552': 'tt0050083', '690533': 'tt1524930',
-                      '652874': 'tt3495184', '375978': 'tt2089050', '701892': 'tt0078788', '612331': 'tt0079470',
-                      '568510': 'tt0208092', '750188': 'tt0111301', '645363': 'tt0246578', '662169': 'tt0434409',
-                      '577638': 'tt0118655', '332725': 'tt0945513', '152490': 'tt0107290', '462892': 'tt0093058',
-                      '867354': 'tt0468569', '307437': 'tt0245612',
-                      '662342': 'tt0388795', '745914': 'tt1028528', '633995': 'tt0120611', '151039': 'tt0211915',
-                      '968175': 'tt0378194', '495280': 'tt0499549', '893272': 'tt0099653', '489970': 'tt0903747',
-                      '152408': 'tt4412362', '828416': 'tt0993846', '533016': 'tt0116996', '267203': 'tt2823088',
-                      '520253': 'tt1951265', '524439': 'tt0266697', '837017': 'tt2089051', '971380': 'tt1375666',
-                      '453359': 'tt2170593', '375488': 'tt1502712'}
+class MatchAlgorithms:
+    # these movies failed with first algorithm. We will try ti build an algorithm that does not make this failures.
+    hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416', '346540': 'tt0099674',
+                          '731920': 'tt0067800', '670216': 'tt2562232', '846099': 'tt3659388', '224676': 'tt3605418',
+                          '264280': 'tt3626742', '545095': 'tt1971325', '220999': 'tt2668134', '890034': 'tt0756683',
+                          '540303': 'tt3276924', '961632': 'tt3510480', '695552': 'tt0050083', '690533': 'tt1524930',
+                          '652874': 'tt3495184', '375978': 'tt2089050', '701892': 'tt0078788', '612331': 'tt0079470',
+                          '568510': 'tt0208092', '750188': 'tt0111301', '645363': 'tt0246578', '662169': 'tt0434409',
+                          '577638': 'tt0118655', '332725': 'tt0945513', '152490': 'tt0107290', '462892': 'tt0093058',
+                          '867354': 'tt0468569', '307437': 'tt0245612', '662342': 'tt0388795', '745914': 'tt1028528',
+                          '633995': 'tt0120611', '151039': 'tt0211915',
+                          '968175': 'tt0378194', '495280': 'tt0499549', '893272': 'tt0099653', '489970': 'tt0903747',
+                          '152408': 'tt4412362', '828416': 'tt0993846', '533016': 'tt0116996', '267203': 'tt2823088',
+                          '520253': 'tt1951265', '524439': 'tt0266697', '837017': 'tt2089051', '971380': 'tt1375666',
+                          '453359': 'tt2170593', '375488': 'tt1502712'}
 
+    class Counters:
+        def __init__(self, total):
+            self.a1hits = 0
+            self.a2hits = 0
+            self.count = 0
+            self.eta = Eta(total)
 
-class Counters:
-    def __init__(self, total):
-        self.a1hits = 0
-        self.a2hits = 0
-        self.count = 0
-        self.eta = Eta(total)
+        def format(self):
+            self.eta.set_current(self.count)
+            return 'progress={} alg1hits={} alg2hits={}'.format(self.eta.format(),
+                                                                progress_format(current=self.a1hits, total=self.count),
+                                                                progress_format(current=self.a2hits, total=self.count))
 
-    def format(self):
-        self.eta.set_current(self.count)
-        return 'progress={} alg1hits={} alg2hits={}'.format(self.eta.format(),
-                                                            progress_format(current=self.a1hits, total=self.count),
-                                                            progress_format(current=self.a2hits, total=self.count))
+    @classmethod
+    def match_algorithm_old_1_from_title_year(self, imdb, title, year):
+        # imdb = self
+        imdbID = imdb.getMovieCodeByAPI(title, year)
+        assert isinstance(imdbID, imdb.ImdbFoundMovie)
+        if imdbID.is_bad_match():
+            imdbID = imdb.getMovieCode(title, year)
+        if imdbID.is_bad_match():
+            t = re.sub('\([\w\W]*?\)', '', title).strip()
+            imdbID = imdb.getMovieCode(t, year)
+        return imdbID
 
-
-def match_algorithm_merge_strict(imdb, current_fa_movie, counters):
-    if current_fa_movie.get_id() == '652874':
-        pass
-    alg1 = imdb.match_algorithm(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-    hcmc = hard_coded_matches.get(current_fa_movie.movieID)
-    alg2 = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-
-    found1 = alg1.could_match()
-    found2 = alg2 is not None and alg2.could_match()
-    strict = True
-    result = None
-    if hcmc is None:
-
-        if found1:
-            counters.a1hits += 1
-            result = alg1
-        else:
+    @classmethod
+    def match_algorithm_1(cls, imdb, current_fa_movie):
+        assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
+        fa_id = current_fa_movie.get_id()
+        if fa_id == '809297':
             pass
+        imdbID = cls.match_algorithm_old_1_from_title_year(current_fa_movie.get_title(), current_fa_movie.get_year())
 
-        if found2:
-            counters.a2hits += 1
-            result = alg2
-        else:
+        use_hard_coded_matches = True
+        if use_hard_coded_matches:
+            if fa_id in cls.hard_coded_matches:
+                imdbID = imdb.get_from_code(cls.hard_coded_matches[fa_id])
+        return imdbID
+
+    @classmethod
+    def match_algorithm_merge_strict(cls, imdb, current_fa_movie, counters):
+        if current_fa_movie.get_id() == '652874':
             pass
+        alg1 = cls.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
+                                                         current_fa_movie.movieYear)
+        hcmc = cls.hard_coded_matches.get(current_fa_movie.movieID)
+        alg2 = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
 
-        if found1 and found2 and not alg1.get_code() == alg2.get_code():
-            print(
-                'ERROR: algorithms 1 and 2 do not match, please, add {} to hard coded match table to increase matching efficiency.'.format(
-                    current_fa_movie.movieTitle))
-            if strict:
-                assert False
-    else:
+        found1 = alg1.could_match()
+        found2 = alg2 is not None and alg2.could_match()
+        strict = True
+        result = None
+        if hcmc is None:
 
-        if found1:
-            if alg1.get_code() == hcmc:
+            if found1:
                 counters.a1hits += 1
                 result = alg1
             else:
                 pass
 
-        if found2:
-            if alg2.get_code() == hcmc:
+            if found2:
                 counters.a2hits += 1
                 result = alg2
             else:
-                if result is None:
-                    pass
-                    if strict:
-                        assert False
+                pass
 
+            if found1 and found2 and not alg1.get_code() == alg2.get_code():
+                print(
+                    'ERROR: algorithms 1 and 2 do not match, please, add {} to hard coded match table to increase matching efficiency.'.format(
+                        current_fa_movie.movieTitle))
+                if strict:
+                    assert False
         else:
-            pass
 
-        if result == None:
-            result = imdb.get_from_code(hcmc, current_fa_movie.movieTitle, current_fa_movie.movieYear)
+            if found1:
+                if alg1.get_code() == hcmc:
+                    counters.a1hits += 1
+                    result = alg1
+                else:
+                    pass
 
-    pass
-    return result
+            if found2:
+                if alg2.get_code() == hcmc:
+                    counters.a2hits += 1
+                    result = alg2
+                else:
+                    if result is None:
+                        pass
+                        if strict:
+                            assert False
 
+            else:
+                pass
 
-def match_algorithm_1(imdb, current_fa_movie):
-    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
-    fa_id = current_fa_movie.get_id()
-    if fa_id == '809297':
+            if result == None:
+                result = imdb.get_from_code(hcmc, current_fa_movie.movieTitle, current_fa_movie.movieYear)
+
         pass
-    imdbID = imdb.match_algorithm(current_fa_movie.get_title(), current_fa_movie.get_year())
+        return result
 
-    use_hard_coded_matches = True
-    if use_hard_coded_matches:
-        if fa_id in hard_coded_matches:
-            imdbID = imdb.get_from_code(hard_coded_matches[fa_id])
-    return imdbID
+    class Algorithms:
+        ALG1 = 'alg1'
+        ALG2 = 'alg2'
+        MERGESTRICT = 'mergestrict'
+        ALL = [ALG1, ALG2]
 
+    @classmethod
+    def movie_match(cls, current_fa_movie, imdb, match_results, imdbNotFound, alg):
+        assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
 
-class Algorithms:
-    ALG1 = 'alg1'
-    ALG2 = 'alg2'
-    MERGESTRICT = 'mergestrict'
-    ALL = [ALG1, ALG2]
+        if alg == cls.Algorithms.ALG1:
+            imdbID = cls.match_algorithm_1(imdb, current_fa_movie)
+        elif alg == cls.Algorithms.MERGESTRICT:
+            imdbID = cls.match_algorithm_merge_strict(imdb, current_fa_movie, cls.Counters(1))
+        else:
+            raise NotImplementedError()
 
+        if imdbID is None or imdbID.is_bad_match() or imdbID.get_code() == None:
+            imdbNotFound.append(current_fa_movie)
 
-def movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg):
-    assert isinstance(current_fa_movie, faHelper.FAhelper.FAMovieData)
+        print(
+        "[Match IMDB] tt" + current_fa_movie.get_title() + ':' + current_fa_movie.get_year() + ':' + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
+        " (" + current_fa_movie.get_year() + ")")
 
-    if alg == Algorithms.ALG1:
-        imdbID = match_algorithm_1(imdb, current_fa_movie)
-    elif alg == Algorithms.MERGESTRICT:
-        imdbID = match_algorithm_merge_strict(imdb, current_fa_movie, Counters(1))
-    else:
-        raise NotImplementedError()
-
-    if imdbID is None or imdbID.is_bad_match() or imdbID.get_code() == None:
-        imdbNotFound.append(current_fa_movie)
-
-    print("[Match IMDB] tt" + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
-          " (" + current_fa_movie.get_year() + ")")
-
-    match_results.append(MovieMatch(current_fa_movie, imdbID))
+        match_results.append(MovieMatch(current_fa_movie, imdbID))
 
 
 def getImdbIdsThread(queue, imdb, imdbNotFound, match_results, alg):
@@ -314,7 +328,7 @@ def getImdbIdsThread(queue, imdb, imdbNotFound, match_results, alg):
         if current_fa_movie is None:
             queue.task_done()
             break
-        movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
+        MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
         if queue.get_count() % 10 == 0:
             print("Task progress: " + queue.get_progress_desc())
         queue.task_done()
@@ -450,7 +464,7 @@ def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
                             elements=fa_movies)
     else:
         for current_fa_movie in fa_movies:
-            movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
+            MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
 
     if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")

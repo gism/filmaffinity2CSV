@@ -1,6 +1,6 @@
 import unittest
 
-from main import Counters, match_algorithm_merge_strict
+from main import MatchAlgorithms
 
 import faHelper
 import imdbHelper
@@ -18,9 +18,9 @@ def algorithm_testing():
     fa.getDumpAllVotes()
     fa_movies = fa.getMoviesDumped()
     imdb = imdbHelper.IMDBhelper()
-    counters = Counters(len(fa_movies))
+    counters = MatchAlgorithms.Counters(len(fa_movies))
     for current_fa_movie in fa_movies:
-        match_algorithm_merge_strict(imdb, current_fa_movie, counters)
+        MatchAlgorithms.match_algorithm_merge_strict(imdb, current_fa_movie, counters)
         counters.count += 1
         print(counters.format())
         pass
@@ -36,12 +36,13 @@ class TestMovieMatch(unittest.TestCase):
         faHelp = faHelper.FAhelper()
         imdb = imdbHelper.IMDBhelper()
 
-        for fa_code, imdb_code in main.hard_coded_matches.items():
+        for fa_code, imdb_code in main.MatchAlgorithms.hard_coded_matches.items():
             extraInfo = faHelp.getMovieInfoById(fa_code)
             current_fa_movie = extraInfo
             assert isinstance(current_fa_movie, faHelper.FAhelper.FaMovieExtraInfo)
             aaa = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-            imdbID = imdb.match_algorithm(current_fa_movie.movieTitle, current_fa_movie.movieYear)
+            imdbID = main.MatchAlgorithms.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
+                                                                                current_fa_movie.movieYear)
             if False:
                 assert imdbID.get_code() == imdb_code
             assert aaa.get_code() == imdb_code

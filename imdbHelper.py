@@ -409,17 +409,6 @@ class IMDBhelper:
             raise
         return res
 
-    def match_algorithm(self, title, year):
-        imdb = self
-        imdbID = imdb.getMovieCodeByAPI(title, year)
-        assert isinstance(imdbID, self.ImdbFoundMovie)
-        if imdbID.is_bad_match():
-            imdbID = imdb.getMovieCode(title, year)
-        if imdbID.is_bad_match():
-            t = re.sub('\([\w\W]*?\)', '', title).strip()
-            imdbID = imdb.getMovieCode(t, year)
-        return imdbID
-
     def match_algorithm_new(self, stitle, syear):
         if stitle == u'Spanish Affair 2':
             pass
