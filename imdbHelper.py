@@ -84,7 +84,7 @@ class IMDBhelper:
         webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
 
         if not 'id' in [cookie.name for cookie in self.cookiejar]:
-            print("Login error!: Incorrect IMDB User or password, please try again.")
+            raise Exception("Login error!: Incorrect IMDB User or password, please try again.")
 
     # returns 1 when login is succeed
     def loginSucceed(self):
@@ -424,7 +424,7 @@ class IMDBhelper:
                 pass
             if kind == u'video game':
                 continue
-            assert kind == u'movie' or kind == u'tv series' or kind == u'episode'
+            assert kind == u'movie' or kind == u'tv series' or kind == u'episode' or kind == u'tv mini series'
             title = movie['title']
             year = movie['year']
             movie_id = movie.movieID
@@ -439,13 +439,65 @@ class IMDBhelper:
         pass
 
     class ImdbVote:
-        def __init__(self, code, title, year, yourrate, allrate):
+        def __init__(self, code, title, year, yourrate, allrate, number, episode_title):
             self.code = code
             self.title = title
             self.year = year
             self.rate = yourrate
             self.allrate = allrate
+            self.number = number
+            """ Index in vote html pages"""
+            self.episode_title = episode_title
             pass
+
+    def __vote_parse_numpages(self, soupPage):
+        pagination = soupPage.body.findAll('div', attrs={'class': 'pagination'})
+
+        assert len(pagination) == 1
+        pass
+        blu = pagination[0].text
+        blo = blu.split('\n')
+        blo2 = blo[2].split()
+        assert blo2[0] == 'Page'
+        assert blo2[2] == 'of'
+        currentpage = int(blo2[1])
+        numpages = int(blo2[3])
+        return numpages
+
+    def __vote_parse_movieDiv(self, movieDiv):
+        tit = movieDiv.b.a.text
+        year = movieDiv.b.span.text
+        year_string = year.split()[0].replace('(', '').replace(')', '').replace(' ', '')
+        year_int = int(year_string)
+        number_element = movieDiv.previous_sibling.previous_sibling
+        assert number_element['class'] == ['number']
+        number = int(number_element.text.replace('.', ''))
+        episodes = movieDiv.findAll('div', class_="episode", recursive=False)
+        if len(episodes) > 0:
+            assert len(episodes) == 1
+            episode_title = episodes[0].a.text
+            pass
+        else:
+            episode_title = None
+        id2s = movieDiv.findAll('div', class_="rating rating-list", recursive=False)
+
+        assert len(id2s) == 1
+        id2s2 = id2s[0]
+        id2 = id2s2['id']
+        code, temp, yourrate, allrate, temp2 = id2.split('|')
+        pass
+        return self.ImdbVote(code=code, title=tit, year=year_int, yourrate=yourrate, allrate=allrate, number=number,
+                             episode_title=episode_title)
+
+    def __vote_parse_votecount(self, soupPage):
+        pagination = soupPage.body.findAll('div', attrs={'class': 'desc'})
+        aa = len(pagination)
+        assert aa == 1
+        bb = pagination[0].span.text
+        cc = bb.split()
+        dd = cc[0].replace('(', '')
+        return int(dd)
+        pass
 
     def __vote_page(self, url):
         webResponse = self.webSession.open(url)
@@ -458,41 +510,33 @@ class IMDBhelper:
         else:
             from bs4 import BeautifulSoup
             soupPage = BeautifulSoup(html, 'html.parser')
-            pagination = soupPage.body.findAll('div', attrs={'class': 'pagination'})
-            assert len(pagination) == 1
-            pass
-            blu = pagination[0].text
-            blo = blu.split('\n')
-            blo2 = blo[2].split()
-            assert blo2[0] == 'Page'
-            assert blo2[2] == 'of'
-            currentpage = int(blo2[1])
-            numpages = int(blo2[3])
+            vote_count = self.__vote_parse_votecount(soupPage)
+            numpages = self.__vote_parse_numpages(soupPage)
             daysDiv = soupPage.body.findAll('div', attrs={'class': 'info'})
-            for dayDiv in daysDiv:
-                tit = dayDiv.b.a.text
-                year = dayDiv.b.span.text
-                year2 = year.split()[0].replace('(', '').replace(')', '').replace(' ', '')
-                year3 = int(year2)
-                id2 = dayDiv.div['id']
-                code, temp, yourrate, allrate, temp2 = id2.split('|')
-                pass
-                yield numpages, self.ImdbVote(code, tit, year3, yourrate, allrate)
+            for movieDiv in daysDiv:
+                vote = self.__vote_parse_movieDiv(movieDiv)
+                assert isinstance(vote, self.ImdbVote)
+                yield vote_count, numpages, vote
                 pass
             pass
 
     def votes(self):
         url = 'http://www.imdb.com/user/ur57660764/ratings?ref_=nv_usr_rt_4'
         numpages = None
-        for numpages, vote in self.__vote_page(url):
+        vote_counter = 0
+        for vote_count, numpages, vote in self.__vote_page(url):
+            vote_counter += 1
             yield vote
-        for current_page in range(2, numpages):
+        for current_page in range(2, numpages + 1):
             url2 = 'http://www.imdb.com/user/ur57660764/ratings?start=101&view=detail&sort=ratings_date:desc'
             url2 = 'http://www.imdb.com/user/ur57660764/ratings?start={}&view=detail&sort=ratings_date:desc'.format(
                 (current_page - 1) * 100 + 1)
-            for numpages2, vote in self.__vote_page(url2):
+            for vote_count2, numpages2, vote in self.__vote_page(url2):
                 assert numpages2 == numpages
+                assert vote_count2 == vote_count
+                vote_counter += 1
                 yield vote
         pass
+        assert vote_count == vote_counter
 
     pass
