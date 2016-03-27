@@ -229,7 +229,7 @@ class IMDBhelper:
 
         return webResponse
 
-    def getMovieCode(self, mTitle, mYear):
+    def movie_find_via_akas(self, mTitle, mYear):
         IMDBakas = "http://akas.{}/".format(self.Imdbcom)
         findList = []
 
@@ -353,7 +353,7 @@ class IMDBhelper:
         # No result.
         return self.ImdbFoundMovie(result=self.ImdbFoundMovie.Result.BAD_MATCH, search_year=mYear, search_title=mTitle)
 
-    def getMovieCodeByAPI(self, mTitle, mYear):
+    def movie_find_via_api(self, mTitle, mYear):
         found_movies = []
 
         sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8')})
@@ -376,7 +376,7 @@ class IMDBhelper:
 
         return self.__get_best_match(found_movies, mTitle, mYear)
 
-    def voteMovie(self, mCode, mVote):
+    def movie_vote(self, mCode, mVote):
         urlAdr = "http://www.imdb.com/title/" + mCode + "/vote"
         webResponse = self.webSession.open(urlAdr)
 
@@ -394,7 +394,7 @@ class IMDBhelper:
         except:
             return -1
 
-    def get_from_code(self, code, title, year):
+    def movie_get_from_code_via_api(self, code, title, year):
         url = 'http://www.omdbapi.com/?i={}&plot=full&r=json'.format(code)
         webResponse = self.webSession.open(url)
 
@@ -409,20 +409,25 @@ class IMDBhelper:
             raise
         return res
 
-    def match_algorithm_new(self, stitle, syear):
+    def movie_find_via_imdblib(self, stitle, syear):
         if stitle == u'Spanish Affair 2':
             pass
         from imdb import IMDb
         ia = IMDb()
         try:
-            res = ia.search_movie(stitle)
+            movies = ia.search_movie(stitle)
         except:
             return
-        for a in res:
-            kind = a['kind']
-            title = a['title']
-            year = a['year']
-            movie_id = a.movieID
+        for movie in movies:
+            kind = movie['kind']
+            if not kind == u'movie':
+                pass
+            if kind == u'video game':
+                continue
+            assert kind == u'movie' or kind == u'tv series' or kind == u'episode'
+            title = movie['title']
+            year = movie['year']
+            movie_id = movie.movieID
             pass
             found_movie = self.ImdbFoundMovie(code=movie_id, title=title, year=year, search_title=stitle,
                                               result=self.ImdbFoundMovie.Result.MATCH, search_year=syear)
@@ -432,3 +437,62 @@ class IMDBhelper:
         if not stitle == u'Spanish Affair 2':
             pass
         pass
+
+    class ImdbVote:
+        def __init__(self, code, title, year, yourrate, allrate):
+            self.code = code
+            self.title = title
+            self.year = year
+            self.rate = yourrate
+            self.allrate = allrate
+            pass
+
+    def __vote_page(self, url):
+        webResponse = self.webSession.open(url)
+
+        html = webResponse.read()  # .strip()
+        if False:
+            # esto falla! no valida bien el html
+            IMDBfoundAPI = minidom.parseString(html)
+            movies_dom_elements = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
+        else:
+            from bs4 import BeautifulSoup
+            soupPage = BeautifulSoup(html, 'html.parser')
+            pagination = soupPage.body.findAll('div', attrs={'class': 'pagination'})
+            assert len(pagination) == 1
+            pass
+            blu = pagination[0].text
+            blo = blu.split('\n')
+            blo2 = blo[2].split()
+            assert blo2[0] == 'Page'
+            assert blo2[2] == 'of'
+            currentpage = int(blo2[1])
+            numpages = int(blo2[3])
+            daysDiv = soupPage.body.findAll('div', attrs={'class': 'info'})
+            for dayDiv in daysDiv:
+                tit = dayDiv.b.a.text
+                year = dayDiv.b.span.text
+                year2 = year.split()[0].replace('(', '').replace(')', '').replace(' ', '')
+                year3 = int(year2)
+                id2 = dayDiv.div['id']
+                code, temp, yourrate, allrate, temp2 = id2.split('|')
+                pass
+                yield numpages, self.ImdbVote(code, tit, year3, yourrate, allrate)
+                pass
+            pass
+
+    def votes(self):
+        url = 'http://www.imdb.com/user/ur57660764/ratings?ref_=nv_usr_rt_4'
+        numpages = None
+        for numpages, vote in self.__vote_page(url):
+            yield vote
+        for current_page in range(2, numpages):
+            url2 = 'http://www.imdb.com/user/ur57660764/ratings?start=101&view=detail&sort=ratings_date:desc'
+            url2 = 'http://www.imdb.com/user/ur57660764/ratings?start={}&view=detail&sort=ratings_date:desc'.format(
+                (current_page - 1) * 100 + 1)
+            for numpages2, vote in self.__vote_page(url2):
+                assert numpages2 == numpages
+                yield vote
+        pass
+
+    pass

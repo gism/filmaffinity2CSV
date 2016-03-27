@@ -177,9 +177,14 @@ class MatchedMoviesList:
         table_notVoted = self.__saveTableBeauty(prefix, postfix)
         return table_notVoted
 
+    def findImdb(self, imdbcode):
+        for a in self.__table:
+            pass
+        pass
+
 
 class MatchAlgorithms:
-    # these movies failed with first algorithm. We will try ti build an algorithm that does not make this failures.
+    # these movies failed with first algorithm. We will try to build an algorithm that does not make this failures.
     hard_coded_matches = {'809297': 'tt0068646', '573847': 'tt0276919', '509573': 'tt0970416', '346540': 'tt0099674',
                           '731920': 'tt0067800', '670216': 'tt2562232', '846099': 'tt3659388', '224676': 'tt3605418',
                           '264280': 'tt3626742', '545095': 'tt1971325', '220999': 'tt2668134', '890034': 'tt0756683',
@@ -210,13 +215,13 @@ class MatchAlgorithms:
     @classmethod
     def match_algorithm_old_1_from_title_year(self, imdb, title, year):
         # imdb = self
-        imdbID = imdb.getMovieCodeByAPI(title, year)
+        imdbID = imdb.movie_find_via_api(title, year)
         assert isinstance(imdbID, imdb.ImdbFoundMovie)
         if imdbID.is_bad_match():
-            imdbID = imdb.getMovieCode(title, year)
+            imdbID = imdb.movie_find_via_akas(title, year)
         if imdbID.is_bad_match():
             t = re.sub('\([\w\W]*?\)', '', title).strip()
-            imdbID = imdb.getMovieCode(t, year)
+            imdbID = imdb.movie_find_via_akas(t, year)
         return imdbID
 
     @classmethod
@@ -230,27 +235,32 @@ class MatchAlgorithms:
         use_hard_coded_matches = True
         if use_hard_coded_matches:
             if fa_id in cls.hard_coded_matches:
-                imdbID = imdb.get_from_code(cls.hard_coded_matches[fa_id])
+                imdbID = imdb.movie_get_from_code_via_api(cls.hard_coded_matches[fa_id])
         return imdbID
 
     @classmethod
-    def match_algorithm_merge_strict(cls, imdb, current_fa_movie, counters):
-        if current_fa_movie.get_id() == '652874':
-            pass
-        alg1 = cls.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
-                                                         current_fa_movie.movieYear)
-        hcmc = cls.hard_coded_matches.get(current_fa_movie.movieID)
-        alg2 = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
+    def match_algorithm_2(cls, imdb, current_fa_movie):
+        aaa = imdb.movie_find_via_imdblib(current_fa_movie.movieTitle, current_fa_movie.movieYear)
+        return aaa
 
-        found1 = alg1.could_match()
+    @classmethod
+    def match_algorithm_merge_strict(cls, imdb, current_fa_movie, counters):
+        if current_fa_movie.get_id() == '307437':
+            pass
+        alg1_result = cls.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
+                                                         current_fa_movie.movieYear)
+        hcmc_result = cls.hard_coded_matches.get(current_fa_movie.movieID)
+        alg2 = cls.match_algorithm_2(imdb, current_fa_movie)
+
+        found1 = alg1_result.could_match()
         found2 = alg2 is not None and alg2.could_match()
         strict = True
         result = None
-        if hcmc is None:
+        if hcmc_result is None:
 
             if found1:
                 counters.a1hits += 1
-                result = alg1
+                result = alg1_result
             else:
                 pass
 
@@ -260,7 +270,8 @@ class MatchAlgorithms:
             else:
                 pass
 
-            if found1 and found2 and not alg1.get_code() == alg2.get_code():
+            # in strict mode we force hard-coded-table value in case algorithm discrepancy
+            if found1 and found2 and not alg1_result.get_code() == alg2.get_code():
                 print(
                     'ERROR: algorithms 1 and 2 do not match, please, add {} to hard coded match table to increase matching efficiency.'.format(
                         current_fa_movie.movieTitle))
@@ -269,27 +280,29 @@ class MatchAlgorithms:
         else:
 
             if found1:
-                if alg1.get_code() == hcmc:
+                if alg1_result.get_code() == hcmc_result:
                     counters.a1hits += 1
-                    result = alg1
+                    result = alg1_result
                 else:
                     pass
 
             if found2:
-                if alg2.get_code() == hcmc:
+                if alg2.get_code() == hcmc_result:
                     counters.a2hits += 1
                     result = alg2
                 else:
                     if result is None:
                         pass
-                        if strict:
+                        # we accept that alg2 could fail if hard-coded-table has the value
+                        if False and strict:
                             assert False
 
             else:
                 pass
 
             if result == None:
-                result = imdb.get_from_code(hcmc, current_fa_movie.movieTitle, current_fa_movie.movieYear)
+                # we did not get result from algorithms, we use hard-coded-table
+                result = imdb.movie_get_from_code_via_api(hcmc_result, current_fa_movie.movieTitle, current_fa_movie.movieYear)
 
         pass
         return result
@@ -315,8 +328,8 @@ class MatchAlgorithms:
             imdbNotFound.append(current_fa_movie)
 
         print(
-        "[Match IMDB] tt" + current_fa_movie.get_title() + ':' + current_fa_movie.get_year() + ':' + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
-        " (" + current_fa_movie.get_year() + ")")
+            "[Match IMDB] tt" + current_fa_movie.get_title() + ':' + current_fa_movie.get_year() + ':' + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
+            " (" + current_fa_movie.get_year() + ")")
 
         match_results.append(MovieMatch(current_fa_movie, imdbID))
 
@@ -343,7 +356,7 @@ def voteImdbThread(queue, imdb, imdbNotVoted):
         assert isinstance(movie_match, MovieMatch)
         try:
             if not movie_match.imdb().bad_or_no_match():
-                imdb.voteMovie(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
+                imdb.movie_vote(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
         except:
             msg = "ERROR: en pelicula {} {}".format(movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
             e = sys.exc_info()
@@ -465,6 +478,10 @@ def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
     else:
         for current_fa_movie in fa_movies:
             MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
+
+    # find imdb orphan votes
+    for a in imdb.votes():
+        match_results.findImdb(a.code)
 
     if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")

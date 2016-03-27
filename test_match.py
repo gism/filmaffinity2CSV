@@ -7,7 +7,7 @@ import imdbHelper
 import main
 
 
-def algorithm_testing():
+def match_algorithm_efficiency_testing_2():
     """ This test tests both algorithms and makes sure that matches that are not the same in both
     have a hardcoded match to solve it.
     :return:
@@ -27,8 +27,19 @@ def algorithm_testing():
     pass
 
 
+def imdb_votes():
+    imdb = imdbHelper.IMDBhelper()
+    sUser, sPassword = main.ConfigManager.get_imdb_user_pass()
+    imdb.setUser(sUser, sPassword)
+    # Login to IMDB
+    imdb.login()
+    votes = imdb.votes()
+    votes2 = list(votes)
+    pass
+
+
 class TestMovieMatch(unittest.TestCase):
-    def test_1(self):
+    def test_1_match_algorithms(self):
         """
         algorithm should pass this test
         :return:
@@ -40,19 +51,25 @@ class TestMovieMatch(unittest.TestCase):
             extraInfo = faHelp.getMovieInfoById(fa_code)
             current_fa_movie = extraInfo
             assert isinstance(current_fa_movie, faHelper.FAhelper.FaMovieExtraInfo)
-            aaa = imdb.match_algorithm_new(current_fa_movie.movieTitle, current_fa_movie.movieYear)
-            imdbID = main.MatchAlgorithms.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
-                                                                                current_fa_movie.movieYear)
+            algorithm_1_result = main.MatchAlgorithms.match_algorithm_1(imdb, current_fa_movie)
+            algorithm_2_result = main.MatchAlgorithms.match_algorithm_2(imdb, current_fa_movie)
             if False:
-                assert imdbID.get_code() == imdb_code
-            assert aaa.get_code() == imdb_code
+                assert algorithm_1_result.get_code() == imdb_code
+            assert algorithm_2_result.get_code() == imdb_code
             pass
 
-    def test_2(self):
-        algorithm_testing()
+    def test_2_match_algorithms_efficiency(self):
+        match_algorithm_efficiency_testing_2()
+
+    @unittest.skip("it is not non-interactive.")
+    def test_3(self):
+        imdb_votes()
 
 
 if __name__ == "__main__":
     # unittest.main()
     # TestMovieMatch().test_2()
-    algorithm_testing()
+    if True:
+        match_algorithm_efficiency_testing_2()
+    else:
+        imdb_votes()
