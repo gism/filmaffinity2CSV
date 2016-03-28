@@ -179,6 +179,10 @@ class MatchedMoviesList:
 
     def findImdb(self, imdbcode):
         for a in self.__table:
+            assert isinstance(a, MovieMatch)
+            cc = a.imdb().get_code()
+            if cc == imdbcode:
+                return a
             pass
         pass
 
@@ -248,7 +252,7 @@ class MatchAlgorithms:
         if current_fa_movie.get_id() == '307437':
             pass
         alg1_result = cls.match_algorithm_old_1_from_title_year(imdb, current_fa_movie.movieTitle,
-                                                         current_fa_movie.movieYear)
+                                                                current_fa_movie.movieYear)
         hcmc_result = cls.hard_coded_matches.get(current_fa_movie.movieID)
         alg2 = cls.match_algorithm_2(imdb, current_fa_movie)
 
@@ -302,7 +306,8 @@ class MatchAlgorithms:
 
             if result == None:
                 # we did not get result from algorithms, we use hard-coded-table
-                result = imdb.movie_get_from_code_via_api(hcmc_result, current_fa_movie.movieTitle, current_fa_movie.movieYear)
+                result = imdb.movie_get_from_code_via_api(hcmc_result, current_fa_movie.movieTitle,
+                                                          current_fa_movie.movieYear)
 
         pass
         return result
@@ -328,7 +333,7 @@ class MatchAlgorithms:
             imdbNotFound.append(current_fa_movie)
 
         print(
-            "[Match IMDB] tt" + current_fa_movie.get_title() + ':' + current_fa_movie.get_year() + ':' + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
+            "[Match IMDB] " + current_fa_movie.get_title() + ':' + current_fa_movie.get_year() + ':' + current_fa_movie.get_id() + " is: " + current_fa_movie.get_title() +
             " (" + current_fa_movie.get_year() + ")")
 
         match_results.append(MovieMatch(current_fa_movie, imdbID))
@@ -441,8 +446,10 @@ class ConfigManager:
         return algorithm
 
 
-def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
-    imdbNotVoted = MatchedMoviesList()
+def imdb_login(imdb):
+    if imdb.loginSucceed():
+        return
+
     # Option A: You want to write each time User and Password:
     sUser, sPassword = ConfigManager.get_imdb_user_pass()
 
@@ -453,6 +460,12 @@ def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
     while not imdb.loginSucceed():
         imdb.login()
     print("Login succeed")
+
+
+def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
+    imdbNotVoted = MatchedMoviesList()
+    imdb_login(imdb)
+
     createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
                         elements=match_results.elements())
 
@@ -480,8 +493,11 @@ def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
             MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
 
     # find imdb orphan votes
+    imdb_login(imdb)
     for a in imdb.votes():
-        match_results.findImdb(a.code)
+        matched = match_results.findImdb(a.code)
+        if matched is None:
+            print('Imdb orphant vote {} {} {}'.format(a.code, a.title, a.year))
 
     if not imdbNotFound.empty():
         print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
@@ -497,6 +513,20 @@ def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
     return match_results
 
 
+def fa_login():
+    fa = faHelper.FAhelper()
+    sUser, sPassword = ConfigManager.get_fa_user_pass()
+    fa.login(sUser, sPassword)
+    if fa.loginSucceed():
+        print("Login succeed")
+    else:
+        print("Error on login")
+        sys.exit("Not possible to finish task with no login")
+
+    print("Your FA ID is: {}".format(fa.getUserID()))
+    return fa
+
+
 def main():
     start_time = time.time()
     logo = '''
@@ -510,17 +540,7 @@ def main():
     '''
     print(logo)
 
-    fa = faHelper.FAhelper()
-    sUser, sPassword = ConfigManager.get_fa_user_pass()
-    fa.login(sUser, sPassword)
-    if fa.loginSucceed():
-        print("Login succeed")
-    else:
-        print("Error on login")
-        sys.exit("Not possible to finish task with no login")
-
-    print("Your FA ID is: {}".format(fa.getUserID()))
-
+    fa = fa_login()
     fa.getDumpAllVotes()
 
     if ConfigManager.match_with_imdb():

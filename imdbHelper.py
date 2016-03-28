@@ -490,10 +490,24 @@ class IMDBhelper:
                              episode_title=episode_title)
 
     def __vote_parse_votecount(self, soupPage):
-        pagination = soupPage.body.findAll('div', attrs={'class': 'desc'})
-        aa = len(pagination)
-        assert aa == 1
-        bb = pagination[0].span.text
+
+        if True:
+            spans = soupPage.body.findAll('span')
+            votecounterspan = None
+            for span1 in spans:
+                tt = span1.text
+                if 'Titles' in tt:
+                    assert votecounterspan is None
+                    votecounterspan = span1
+                pass
+            assert votecounterspan is not None
+        else:
+            # this does not work
+            pagination = soupPage.body.findAll('div', attrs={'class': 'desc'})
+            aa = len(pagination)
+            assert aa == 1
+            votecounterspan = pagination[0].span
+        bb = votecounterspan.text
         cc = bb.split()
         dd = cc[0].replace('(', '')
         return int(dd)
@@ -504,7 +518,7 @@ class IMDBhelper:
 
         html = webResponse.read()  # .strip()
         if False:
-            # esto falla! no valida bien el html
+            # This fails! does not correctly validate html
             IMDBfoundAPI = minidom.parseString(html)
             movies_dom_elements = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
         else:
