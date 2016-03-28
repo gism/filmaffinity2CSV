@@ -226,6 +226,10 @@ class FAhelper:
                 webResponse = self.__webSession.open(url)
 
                 html = webResponse.read()
+
+                from bs4 import BeautifulSoup
+                soupPage = BeautifulSoup(html, 'html.parser')
+
                 html = unicode(html, 'utf-8')
                 if webResponse.getcode() != 200:
                     print(webResponse.getcode())
@@ -257,15 +261,13 @@ class FAhelper:
         movieYear = match.group(1)
 
         # Get movie country information
-        pattern = re.compile(
-            '<dt>Country<\/dt>[\r\n\s]+<dd><span id="country-img"><img src="\/imgs\/countries\/[\w]+.jpg" title="[\W\w\s]+?"><\/span>&nbsp;([\W\w\s]+?)<\/dd>')
-        match = pattern.search(html)
-        if not match:
+        country_img_tag = soupPage.body.find(id='country-img')
+        country_text = country_img_tag.next_sibling
+        movieCountry = country_text.strip()
+        if movieCountry is None or len(movieCountry) < 2:
             raise NotImplementedError(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie county. Probably FA changed web page structure. Movie ID: " + str(
                     movieID))
-
-        movieCountry = match.group(1)
 
         # Get movie director information
         pattern = re.compile('<dt>Director<\/dt>[\w\s\W\r\n]+?<span itemprop="name">([\w\W\s]+?)<\/span>')
