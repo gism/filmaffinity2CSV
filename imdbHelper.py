@@ -535,7 +535,9 @@ class IMDBhelper:
             pass
 
     def votes(self):
+        import  warnings
         url = 'http://www.imdb.com/user/ur57660764/ratings?ref_=nv_usr_rt_4'
+        warnings.warn('url not implemented for any user: {}'.format(url))
         numpages = None
         vote_counter = 0
         for vote_count, numpages, vote in self.__vote_page(url):
