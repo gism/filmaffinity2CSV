@@ -339,41 +339,6 @@ class MatchAlgorithms:
         match_results.append(MovieMatch(current_fa_movie, imdbID))
 
 
-def getImdbIdsThread(queue, imdb, imdbNotFound, match_results, alg):
-    assert isinstance(queue, CountingQueue)
-    while True:
-        current_fa_movie = queue.get()
-        if current_fa_movie is None:
-            queue.task_done()
-            break
-        MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
-        if queue.get_count() % 10 == 0:
-            print("Task progress: " + queue.get_progress_desc())
-        queue.task_done()
-
-
-def voteImdbThread(queue, imdb, imdbNotVoted):
-    while True:
-        movie_match = queue.get()
-        if movie_match is None:
-            queue.task_done()
-            break
-        assert isinstance(movie_match, MovieMatch)
-        try:
-            if not movie_match.imdb().bad_or_no_match():
-                imdb.movie_vote(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
-        except:
-            msg = "ERROR: en pelicula {} {}".format(movie_match.imdb().get_code_decoded(), movie_match.fa().get_title())
-            e = sys.exc_info()
-            logging.exception(msg)
-            imdbNotVoted.append(movie_match)
-            print(msg)
-        index = queue.get_count()
-        if index % 10 == 0:
-            print("Task progress: " + queue.get_progress_desc())
-        queue.task_done()
-
-
 class ConfigManager:
     @classmethod
     def get_imdb_user_pass(cls):
@@ -441,115 +406,154 @@ class ConfigManager:
 
             algorithm = config.algorithm
         except:
-            msg = 'Witch algoritm do you wiant to use? {}:'.format(Algorithms.ALL)
+            msg = 'Witch algoritm do you wiant to use? {}:'.format(MatchAlgorithms.Algorithms.ALL)
             algorithm = raw_input('\r\n{}:'.format(msg))
         return algorithm
 
 
-def imdb_login(imdb):
-    if imdb.loginSucceed():
-        return
-
-    # Option A: You want to write each time User and Password:
-    sUser, sPassword = ConfigManager.get_imdb_user_pass()
-
-    imdb.setUser(sUser, sPassword)
-
-    # Login to IMDB
-    imdb.login()
-    while not imdb.loginSucceed():
-        imdb.login()
-    print("Login succeed")
-
-
-def copy_votes_from_fa_to_imdb(imdb, match_results, postfix):
-    imdbNotVoted = MatchedMoviesList()
-    imdb_login(imdb)
-
-    createTrheadedQueue(target=voteImdbThread, args=(imdb, imdbNotVoted),
-                        elements=match_results.elements())
-
-    if len(imdbNotVoted) > 0:
-        print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
-              ' (' + postfix + ')')
-        table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", postfix)
-        print("Movies not voted:")
-        print(table_notVoted)
-
-
-def match_fa_with_imdb(fa_movies, start_time, report_postfix, threaded):
-    match_results = MatchedMoviesList()
-    imdb = imdbHelper.IMDBhelper()
-    imdbNotFound = FAMovieList()
-
-    print('\nAbout to get imdb ids...\n')
-
-    alg = ConfigManager.algorithm()
-    if threaded:
-        createTrheadedQueue(target=getImdbIdsThread, args=(imdb, imdbNotFound, match_results, alg),
-                            elements=fa_movies)
-    else:
-        for current_fa_movie in fa_movies:
+class Fa2ImdbApp:
+    @classmethod
+    def getImdbIdsThread(cls, queue, imdb, imdbNotFound, match_results, alg):
+        assert isinstance(queue, CountingQueue)
+        while True:
+            current_fa_movie = queue.get()
+            if current_fa_movie is None:
+                queue.task_done()
+                break
             MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
+            if queue.get_count() % 10 == 0:
+                print("Match imdb-fa movie task progress: " + queue.get_progress_desc())
+            queue.task_done()
 
-    # find imdb orphan votes
-    imdb_login(imdb)
-    for a in imdb.votes():
-        matched = match_results.findImdb(a.code)
-        if matched is None:
-            print('Imdb orphant vote {} {} {}'.format(a.code, a.title, a.year))
+    @classmethod
+    def voteImdbThread(cls, queue, imdb, imdbNotVoted):
+        while True:
+            movie_match = queue.get()
+            if movie_match is None:
+                queue.task_done()
+                break
+            assert isinstance(movie_match, MovieMatch)
+            try:
+                if not movie_match.imdb().bad_or_no_match():
+                    imdb.movie_vote(movie_match.imdb().get_code_decoded(), movie_match.fa().get_rate())
+            except:
+                msg = "ERROR: en pelicula {} {}".format(movie_match.imdb().get_code_decoded(),
+                                                        movie_match.fa().get_title())
+                e = sys.exc_info()
+                logging.exception(msg)
+                imdbNotVoted.append(movie_match)
+                print(msg)
+            index = queue.get_count()
+            if index % 10 == 0:
+                print("Voting task progress: " + queue.get_progress_desc())
+            queue.task_done()
 
-    if not imdbNotFound.empty():
-        print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-        table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", report_postfix)
-        print("Movies not found:")
-        print(table_notFound)
+    @classmethod
+    def imdb_login(cls, imdb):
+        if imdb.loginSucceed():
+            return
 
-    print("\r\nAll movies from FA matched with IMDB database.\r\n")
-    print("--- Total runtime %s seconds ---" % (time.time() - start_time))
+        # Option A: You want to write each time User and Password:
+        sUser, sPassword = ConfigManager.get_imdb_user_pass()
 
-    if ConfigManager.copy_votes_to_imdb():
-        copy_votes_from_fa_to_imdb(imdb, match_results, report_postfix)
-    return match_results
+        imdb.setUser(sUser, sPassword)
 
-
-def fa_login():
-    fa = faHelper.FAhelper()
-    sUser, sPassword = ConfigManager.get_fa_user_pass()
-    fa.login(sUser, sPassword)
-    if fa.loginSucceed():
+        # Login to IMDB
+        imdb.login()
+        while not imdb.loginSucceed():
+            imdb.login()
         print("Login succeed")
-    else:
-        print("Error on login")
-        sys.exit("Not possible to finish task with no login")
 
-    print("Your FA ID is: {}".format(fa.getUserID()))
-    return fa
+    @classmethod
+    def copy_votes_from_fa_to_imdb(cls, imdb, match_results, postfix):
+        imdbNotVoted = MatchedMoviesList()
+        cls.imdb_login(imdb)
 
+        createTrheadedQueue(target=cls.voteImdbThread, args=(imdb, imdbNotVoted),
+                            elements=match_results.elements())
 
-def main():
-    start_time = time.time()
-    logo = '''
-    `7MM"""YMM  db               `7MMF'`7MMM.     ,MMF'`7MM"""Yb. `7MM"""Yp,
-      MM    `7 ;MM:                MM    MMMb    dPMM    MM    `Yb. MM    Yb
-      MM   d  ,V^MM.     pd*"*b.   MM    M YM   ,M MM    MM     `Mb MM    dP
-      MM""MM ,M  `MM    (O)   j8   MM    M  Mb  M' MM    MM      MM MM"""bg.
-      MM   Y AbmmmqMA       ,;j9   MM    M  YM.P'  MM    MM     ,MP MM    `Y
-      MM    A'     VML   ,-='      MM    M  `YM'   MM    MM    ,dP' MM    ,9
-    .JMML..AMA.   .AMMA.Ammmmmmm .JMML..JML. `'  .JMML..JMMmmmdP' .JMMmmmd9
-    '''
-    print(logo)
+        if len(imdbNotVoted) > 0:
+            print("\r\nCaution: It was not possible to vote ", len(imdbNotVoted), " movies",
+                  ' (' + postfix + ')')
+            table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", postfix)
+            print("Movies not voted:")
+            print(table_notVoted)
 
-    fa = fa_login()
-    fa.getDumpAllVotes()
+    @classmethod
+    def match_fa_with_imdb(cls, fa_movies, start_time, report_postfix, threaded):
+        match_results = MatchedMoviesList()
+        imdb = imdbHelper.IMDBhelper()
+        imdbNotFound = FAMovieList()
 
-    if ConfigManager.match_with_imdb():
-        match_results = match_fa_with_imdb(fa.getMoviesDumped(), start_time, '-fauser' + fa.getUserID(), threaded=True)
-        match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
+        print('\nAbout to get imdb ids...\n')
 
-    print("--- Total runtime %s seconds ---" % (time.time() - start_time))
-    print("\r\nDONE")
+        alg = ConfigManager.algorithm()
+        if threaded:
+            createTrheadedQueue(target=cls.getImdbIdsThread, args=(imdb, imdbNotFound, match_results, alg),
+                                elements=fa_movies)
+        else:
+            for current_fa_movie in fa_movies:
+                MatchAlgorithms.movie_match(current_fa_movie, imdb, match_results, imdbNotFound, alg)
+
+        # find imdb orphan votes
+        cls.imdb_login(imdb)
+        for a in imdb.votes():
+            matched = match_results.findImdb(a.code)
+            if matched is None:
+                print('Imdb orphant vote {} {} {}'.format(a.code, a.title, a.year))
+
+        if not imdbNotFound.empty():
+            print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
+            table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", report_postfix)
+            print("Movies not found:")
+            print(table_notFound)
+
+        print("\r\nAll movies from FA matched with IMDB database.\r\n")
+        print("--- Total runtime %s seconds ---" % (time.time() - start_time))
+
+        if ConfigManager.copy_votes_to_imdb():
+            cls.copy_votes_from_fa_to_imdb(imdb, match_results, report_postfix)
+        return match_results
+
+    @classmethod
+    def fa_login(cls):
+        fa = faHelper.FAhelper()
+        sUser, sPassword = ConfigManager.get_fa_user_pass()
+        fa.login(sUser, sPassword)
+        if fa.loginSucceed():
+            print("Login succeed")
+        else:
+            print("Error on login")
+            sys.exit("Not possible to finish task with no login")
+
+        print("Your FA ID is: {}".format(fa.getUserID()))
+        return fa
+
+    @classmethod
+    def main(cls):
+        start_time = time.time()
+        logo = '''
+        `7MM"""YMM  db               `7MMF'`7MMM.     ,MMF'`7MM"""Yb. `7MM"""Yp,
+          MM    `7 ;MM:                MM    MMMb    dPMM    MM    `Yb. MM    Yb
+          MM   d  ,V^MM.     pd*"*b.   MM    M YM   ,M MM    MM     `Mb MM    dP
+          MM""MM ,M  `MM    (O)   j8   MM    M  Mb  M' MM    MM      MM MM"""bg.
+          MM   Y AbmmmqMA       ,;j9   MM    M  YM.P'  MM    MM     ,MP MM    `Y
+          MM    A'     VML   ,-='      MM    M  `YM'   MM    MM    ,dP' MM    ,9
+        .JMML..AMA.   .AMMA.Ammmmmmm .JMML..JML. `'  .JMML..JMMmmmdP' .JMMmmmd9
+        '''
+        print(logo)
+
+        fa = cls.fa_login()
+        fa.getDumpAllVotes()
+
+        if ConfigManager.match_with_imdb():
+            match_results = cls.match_fa_with_imdb(fa.getMoviesDumped(), start_time, '-fauser' + fa.getUserID(),
+                                                   threaded=True)
+            match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
+
+        print("--- Total runtime %s seconds ---" % (time.time() - start_time))
+        print("\r\nDONE")
 
 
 if __name__ == "__main__":
-    main()
+    Fa2ImdbApp.main()
