@@ -75,6 +75,10 @@ class FAhelper:
     def setUserID(self, userId):
         self.userId = str(userId)
 
+    # returns value of film affinity user ID
+    def getUserID(self):
+        return self.userId
+
     def login(self):
         user, password = self.getUser()
 
@@ -82,7 +86,7 @@ class FAhelper:
 
         # Post data to Filmaffinity login URL.
         dataForm = {"postback": 1, "rp": "", "username": user,
-                    "password": password}  # a 30/10/2015 Han cambiado el formulario de login, que alegria
+                    "password": password}
         dataPost = urllib.urlencode(dataForm)
         request = urllib2.Request(self.urlLogin, dataPost)
         self.webSession.open(request)  # Our cookiejar automatically receives the cookies, after the request
@@ -103,11 +107,7 @@ class FAhelper:
     # returns 1 when login is succeed
     def loginSucceed(self):
         return len(self.cookiejar) > 1
-
-    # returns value of film affinity user ID
-    def getUserID(self):
-        return self.userId
-
+    
     def getNumVotes(self):
 
         if self.userId == "0":
@@ -220,7 +220,6 @@ class FAhelper:
                 self.faMovies.append(movieResult)
 
     class FaMovieExtraInfo:
-
         def __init__(self, movieTitle, movieYear, movieCountry, movieDirector, movieCast, movieGenre):
             self.movieTitle = movieTitle
             self.movieYear = movieYear
@@ -228,12 +227,19 @@ class FAhelper:
             self.movieDirector = movieDirector
             self.movieCast = movieCast
             self.movieGenre = movieGenre
-
+        def __repr__(self):
+            s = u"<FaMovieExtraInfo Title: {0}, Year: {1}, Country: {2} Director: {3}, Cast: {4}, Genre: {5}>".format(self.movieTitle, self.movieYear, self.movieCountry, self.movieDirector, self.movieCast, self.movieGenre)
+            return s.encode('ascii', 'backslashreplace')
+        
+        def __str__(self):
+            s = u"Title: {0}, Year: {1}, Country: {2} Director: {3}, Cast: {4}, Genre: {5}".format(self.movieTitle, self.movieYear, self.movieCountry, self.movieDirector, self.movieCast, self.movieGenre)
+            return s.encode('ascii', 'backslashreplace')
+        
     def getMovieInfoById(self, movieID):
 
-        found = 0
+        found = False
         intento = 0
-        while found == 0:
+        while found == False:
             if intento < 3:
                 url = self.urlFilm + str(movieID) + self.urlFilmSufix
                 webResponse = self.webSession.open(url)
@@ -250,9 +256,8 @@ class FAhelper:
                     movieTitle = match.group(1)
                     movieTitle = movieTitle.replace("(TV Series)", "").strip()
                     movieTitle = movieTitle.replace("(TV)", "").strip()
-                    movieTitle = movieTitle.replace("(S)", "").strip()
-
-                    found = 1
+                    movieTitle = movieTitle.replace("(S)", "").strip()                    
+                    found = True
                 else:
                     intento = intento + 1
             else:
@@ -274,7 +279,7 @@ class FAhelper:
 
         # Get movie country information
         pattern = re.compile(
-            '<dt>Country<\/dt>[\r\n\s]+<dd><span id="country-img"><img src="\/imgs\/countries\/[\w]+.jpg" title="[\W\w\s]+?"><\/span>&nbsp;([\W\w\s]+?)<\/dd>')
+            '<dt>Country<\/dt>[\r\n\s]+<dd><span id="country-img"><[\W\w\s]+?><\/span>&nbsp;([\W\w\s]+?)<\/dd>')
         match = pattern.search(html)
         if match:
             movieCountry = match.group(1)
@@ -301,9 +306,9 @@ class FAhelper:
         match = pattern.search(html)
         if match:
             castWithLink = match.group(1)
-            castWithLink = re.sub('\s?<a href=[\w\W]+?>', "", castWithLink)
-            movieCast = castWithLink.replace("</a>", "")
-            movieCast = movieCast.replace("\r\n", " ")
+            castWithLink = re.sub('<[\w\W\s\n\r]+?>', "", castWithLink)
+            movieCast = re.sub('[\n\r]', "", castWithLink)
+            movieCast = re.sub('[\s]+', " ", movieCast)
             movieCast = movieCast.strip()
         else:
             print(
@@ -316,12 +321,9 @@ class FAhelper:
         match = pattern.search(html)
         if match:
             genreWithLink = match.group(1)
-            genreWithLink = genreWithLink.replace("</span>", "")
-            genreWithLink = genreWithLink.replace("<span>", "")
-            genreWithLink = re.sub('\s+?<a href=[\w\W]+?>', "", genreWithLink)
-            movieGenre = genreWithLink.replace("</a>", "")
-            movieGenre = movieGenre.replace("\r\n", " ")
-            movieGenre = movieGenre.strip()
+            genreWithLink = re.sub('<[\w\W\s\n\r]+?>', "", genreWithLink)
+            movieGenre = re.sub('[\n\r]', "", genreWithLink)
+            movieGenre = re.sub('[\s]+', " ", movieGenre)
         else:
             print(
                 "ERROR FOUND: change regular expression at getMovieInfoById() for movie genre. Probably FA changed web page structure. Movie ID: " + str(

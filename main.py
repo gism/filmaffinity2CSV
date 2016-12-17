@@ -58,34 +58,31 @@ def createTrheadedQueue(target, args, elements):
 
 class FAMovieList:
     def __init__(self):
-        self.__imdbNotFound = []
+        self.__movieTable = []
 
     def __len__(self):
-        return len(self.__imdbNotFound)
+        return len(self.__movieTable)
 
     def empty(self):
-        return len(self.__imdbNotFound) < 1
+        return len(self.__movieTable) < 1
 
     def append(self, element):
         assert isinstance(element, faHelper.FAhelper.FAMovieData)
-        self.__imdbNotFound.append(element)
+        self.__movieTable.append(element)
 
-    def saveReport(self, prefix, postfix):
-        imdbNotFound_tabulated = []
-        for not_found_movie in self.__imdbNotFound:
-            assert isinstance(not_found_movie, faHelper.FAhelper.FAMovieData)
-            imdbNotFound_tabulated.append(not_found_movie.tabulate1())
-        table_notFound = tabulate(imdbNotFound_tabulated,
+    def saveReport(self, fileName):
+        movieTable_tabulated = []
+        for movie in self.__movieTable:
+            assert isinstance(movie, faHelper.FAhelper.FAMovieData)
+            movieTable_tabulated.append(movie.tabulate1())
+        table_acii = tabulate(movieTable_tabulated,
                                   headers=list(faHelper.FAhelper.FAMovieData.colum_names),
                                   tablefmt='orgtbl')
-
-        tLocal = time.localtime()
-        fileNameNotFound = prefix + "_" + str(tLocal.tm_year) + "-" + str(tLocal.tm_mon) + "-" + str(
-            tLocal.tm_mday) + postfix + ".txt"
-        fileNotFound = codecs.open(fileNameNotFound, "w", "utf_16")
-        fileNotFound.write(table_notFound)
-        fileNotFound.close()
-        return table_notFound
+        
+        tableFile = codecs.open(fileName, "w", "utf_16")
+        tableFile.write(table_acii)
+        tableFile.close()
+        return table_acii
 
 
 class MovieMatch:
@@ -239,35 +236,45 @@ def main():
     .JMML..AMA.   .AMMA.Ammmmmmm .JMML..JML. `'  .JMML..JMMmmmdP' .JMMmmmd9
     '''
     print(logo)
-
+    
+    # Create a FilmAfinity handler
     fa = faHelper.FAhelper()
-
+    sUser_id = ""
     try:
+        # Configuration file is not mandatory (just to avoid introducing credentials each run)
         import config
-
         sUser = config.fauser
         sPassword = config.fapass
+        sUser_id = config.fauser_id
     except:
-        sUser = raw_input('Please enter your FilmAffinity USER:')
-        sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
-
-    fa.setUser(sUser, sPassword)
-    fa.login()
-    if fa.loginSucceed():
-        print("Login succeed")
+        sIn = raw_input('\r\nDo you know your FilmAffinity User ID? <Y> or <N>:')
+        while (sIn.lower() != "y" and sIn.lower() != "n"):
+            sIn = raw_input('Do you know your FilmAffinity User ID? <Y> or <N>:')
+        if sIn.lower() == "y":
+            sUser_id = raw_input('Introduce user ID:')
+        else:
+            sUser = raw_input('Please enter your FilmAffinity USER:')
+            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+    
+    if  (sUser_id == "" or (not sUser_id.isdigit())):
+        fa.setUser(sUser, sPassword)
+        fa.login()
+        if fa.loginSucceed():
+            print("Login succeed")
+        else:
+            print("Error on login")
+            sys.exit("Not possible to finish task with no login")
+        print("Your FA ID is: ", fa.getUserID())
     else:
-        print("Error on login")
-        sys.exit("Not possible to finish task with no login")
-
-    print("Your FA ID is: ", fa.getUserID())
-
+        fa.setUserID(sUser_id)
+    
+    
     fa.getDumpAllVotes()
     fa_movies = fa.getMoviesDumped()
     match_results = MatchedMoviesList()
-
+    
     try:
         import config
-
         backuptoimdb = config.backuptoimdb
     except:
         sIn = raw_input('\r\nDo you want to backup to IMDB? <Y> or <N>:')
@@ -277,8 +284,19 @@ def main():
             backuptoimdb = True
         else:
             backuptoimdb = False
-
-    if backuptoimdb:
+        
+    if not backuptoimdb:
+        # Save file with all FA information
+        listFaMovies = FAMovieList()
+        for movie in fa_movies:
+            listFaMovies.append(movie)
+        tLocal = time.localtime()
+        tableFileName = "FA_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".txt"
+        table_ascii = listFaMovies.saveReport(tableFileName)
+        print("FilmAffinity movie list saved at: " + tableFileName)
+        print(table_ascii)
+            
+    else:
         imdb = imdbHelper.IMDBhelper()
 
         # Array para las peliculas que presenten peliculas
@@ -292,7 +310,9 @@ def main():
 
         if not imdbNotFound.empty():
             print("\r\nCaution: ", len(imdbNotFound), " FA movies could not be fount in IMDB!")
-            table_notFound = imdbNotFound.saveReport("FilmsNotFoundAtIMDB", '-fauser' + fa.getUserID())
+            tLocal = time.localtime()
+            tableFileName = "FilmsNotFoundAtIMDB_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".txt"
+            table_notFound = imdbNotFound.saveReport(tableFileName)
             print("Movies not found:")
             print(table_notFound)
 
@@ -324,9 +344,9 @@ def main():
             table_notVoted = imdbNotVoted.saveReportBeauty("FilmsNotVotedAtIMDB", '-fauser' + fa.getUserID())
             print("Movies not voted:")
             print(table_notVoted)
-
-    match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
-
+    
+        match_results.saveCsvReportAndBeauty("FA-movies", "FA-moviesBeauty", '-fauserid' + fa.getUserID())
+        
     print("--- Total runtime %s seconds ---" % (time.time() - start_time))
     print("\r\nDONE")
 
