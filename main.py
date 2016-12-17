@@ -83,7 +83,20 @@ class FAMovieList:
         tableFile.write(table_acii)
         tableFile.close()
         return table_acii
-
+    
+    def saveCSV(self, fileName):
+        csv = u''
+        for movie in self.__movieTable:
+            for a in movie.tabulate1():
+                if a == None: a =""
+                a = a.replace(";", ",")
+                csv = csv + a + ";"
+            csv = csv + "\n"
+            
+        csvFile = codecs.open(fileName, "w", "utf_16")
+        csvFile.write(csv)
+        csvFile.close()
+        return csv
 
 class MovieMatch:
     def __init__(self, fa, imdb):
@@ -293,10 +306,14 @@ def main():
         tLocal = time.localtime()
         tableFileName = "FA_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".txt"
         table_ascii = listFaMovies.saveReport(tableFileName)
-        print("FilmAffinity movie list saved at: " + tableFileName)
+        print("FilmAffinity movie list (TXT) saved at: " + tableFileName)
+        csvFileName = "FA_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".csv"
+        listFaMovies.saveCSV(csvFileName)
+        print("FilmAffinity movie list (CSV) saved at: " + csvFileName)
         print(table_ascii)
             
     else:
+        # Transfer FA votes to IMDB:
         imdb = imdbHelper.IMDBhelper()
 
         # Array para las peliculas que presenten peliculas
@@ -319,10 +336,8 @@ def main():
         print("\r\nAll movies from FA matched with IMDB database.\r\n")
         print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 
-        # Option A: You want to write each time User and Password:
         try:
             import config
-
             sUser = config.imdb_user
             sPassword = config.imdb_password
         except:
