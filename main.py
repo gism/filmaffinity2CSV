@@ -8,7 +8,7 @@ import time
 import imdbHelper
 import threading, Queue
 import re
-
+import getpass
 
 class CountingQueue(Queue.Queue):
     def __init__(self, maxsize=0):
@@ -267,7 +267,8 @@ def main():
             sUser_id = raw_input('Introduce user ID:')
         else:
             sUser = raw_input('Please enter your FilmAffinity USER:')
-            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+            #sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+            sPassword = getpass.getpass(prompt='Please enter your FilmAffinity PASSWORD:')
     
     if  (sUser_id == "" or (not sUser_id.isdigit())):
         fa.setUser(sUser, sPassword)
@@ -341,8 +342,9 @@ def main():
             sUser = config.imdb_user
             sPassword = config.imdb_password
         except:
-            sUser = raw_input('Please enter your FilmAffinity USER:')
-            sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
+            sUser = raw_input('Please enter your IMDB USER:')
+            # sPassword = raw_input('Please enter your IMDB PASSWORD:')
+            sPassword = getpass.getpass(prompt='Please enter your IMDB PASSWORD:')
         imdb.setUser(sUser, sPassword)
 
         # Login to IMDB
