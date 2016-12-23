@@ -2,9 +2,17 @@
 
 import sys
 import re
-import cookielib, urllib, urllib2
+#import cookielib, urllib, urllib2
+import requests
 from difflib import SequenceMatcher as sDiff
 from xml.dom import minidom
+from bs4 import BeautifulSoup
+
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 WORKERS = 4  # Mutli-Thread workers
 MAX_RETRY = 10
@@ -18,7 +26,7 @@ class IMDBhelper:
     IMDBvotedPrefix = "http://www.imdb.com/user/ur5741926/ratings?start="
     IMDBvotedSufix = "&view=detail&sort=title:asc&defaults=1&my_ratings=restrict&scb=0.28277816087938845"
     IMDBakas = "http://akas.imdb.com/"
-    IMDBbyTitleAPI = "http://www.imdb.com/xml/find?xml=1&nr=1&tt=on&"
+    IMDBbyTitleAPI = "http://www.imdb.com/xml/find?"
     IMDBurlCaptcha = "https://secure.imdb.com/widget/captcha?type="
 
     cookiejar = None
@@ -27,11 +35,13 @@ class IMDBhelper:
     def __init__(self):
         self.userName = ""
         self.userPass = ""
+        self.userId = ""
 
         # Enable cookie support for urllib2
-        self.cookiejar = cookielib.CookieJar()
-        self.webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
-
+        #self.cookiejar = cookielib.CookieJar() # DELETE
+        #self.webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar)) # DELETE
+        self.webSession = requests.Session()
+        
     def setUser(self, userName, userPass):
         self.userName = userName
         self.userPass = userPass
@@ -46,77 +56,58 @@ class IMDBhelper:
         intento = 0
         while intento < MAX_RETRY:
             try:
-                webResponse = self.webSession.open(self.IMDBurlLogin)
-                intento = 99
+                webResponse = self.webSession.get(self.IMDBurlLogin)
+                intento = MAX_RETRY
             except:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdbHelper.login()")
         else:
-            html = webResponse.read()
-            html = unicode(html, 'utf-8')
-
-            # Get captcha URL
-            pattern = re.compile('<img src="\/widget\/captcha\?type=([\w\W]+?)"')
-            match = pattern.search(html)
-            if match:
-                captchaURL = self.IMDBurlCaptcha + match.group(1)
-            else:
-                print(
-                    "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
-                sys.exit("Error happens, check log.")
-
-            print("Type captcha form image: " + captchaURL)
-            capcha = raw_input('>')
-
-            pattern = re.compile('<input type="hidden" name="([\d\w]+)" value="([\d\w]+)" \/>')
-            match = pattern.finditer(html)
-
-            if match:
-                for result in match:
-                    chsm1 = result.group(1)
-                    chsm2 = result.group(2)
-
-                dataForm = {chsm1: chsm2, "login": self.userName, "password": self.userPass, "captcha_answer": capcha}
-            else:
-                print(
-                    "ERROR FOUND: change regular expression at login() for checksum. Probably IMDB changed web page structure")
-                sys.exit("Error happens, check log.")
-
-            dataPost = urllib.urlencode(dataForm)
-            request = urllib2.Request("https://secure.imdb.com/register-imdb/login#", dataPost)
-
-            webResponse = self.webSession.open(request)  # Our cookiejar automatically receives the cookies
-
-            if not 'id' in [cookie.name for cookie in self.cookiejar]:
+            
+            pattern = re.compile('<a href="(https:\/\/www.imdb.com\/ap\/signin\?[\w\W]+?)"')
+            html = webResponse.text
+            ulr_imdb_login = pattern.search(html).group(1)
+            
+            driver = webdriver.Chrome()
+            driver.get(ulr_imdb_login);
+            time.sleep(5)
+            search_box = driver.find_element_by_name('email')
+            search_box.send_keys(self.userName)
+            search_box = driver.find_element_by_name('password')
+            search_box.send_keys(self.userPass)
+            search_box.submit()
+            time.sleep(5)
+            cookies = driver.get_cookies()
+            s = requests.Session()
+            for cookie in cookies:
+                self.webSession.cookies.set(cookie['name'], cookie['value'])
+            driver.quit()
+            
+            if not 'id' in [cookie.name for cookie in self.webSession.cookies]:
                 print("Login error!: Incorrect IMDB User or password, please try again.")
 
     # returns 1 when login is succeed
     def loginSucceed(self):
-        return 'id' in [cookie.name for cookie in self.cookiejar]
+        return 'id' in [cookie.name for cookie in self.webSession.cookies]
 
     def getMovieCode(self, mTitle, mYear):
 
         findList = []
-
-        sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8'), 's': 'all'})
-        urlAdr = self.IMDBakas + "find?" + sUrlAdd
-
+        
         intento = 0
         while intento < MAX_RETRY:
             try:
-                webResponse = self.webSession.open(urlAdr)
+                webResponse = self.webSession.get(self.IMDBakas + 'find', params={'ref_': 'nv_sr_fn', 'q': mTitle.encode('utf-8'), 's':'all' })
                 intento = 99
             except:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdb.getMovieCode() - " + mTitle + "(" + mYear + ")")
             return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
-
-        urlAdrRed = webResponse.geturl()
-        urlHTML = webResponse.read()
-        urlHTML = unicode(urlHTML, 'utf-8')
-
+        
+        urlAdrRed = webResponse.url
+        urlHTML = webResponse.text
+        
         if urlAdrRed.find("/title/tt") != -1:
 
             mCode = urlAdrRed[urlAdrRed.find("/title/tt") + len("/title/tt") - 2:urlAdrRed.find("/title/tt") + len(
@@ -145,7 +136,6 @@ class IMDBhelper:
             iterator = pattern.finditer(urlHTML)
 
             for result in iterator:
-
                 movieCode = str(result.group(1))
                 movieYear = result.group(3)
 
@@ -212,7 +202,14 @@ class IMDBhelper:
             self.__ratio = ratio
             self.__result = result
             pass
-
+        def __repr__(self):
+            s = u"<ImdbFoundMovie Title: {0}, Year: {1}, Ratio: {2} Result: {3}, Code: {4}>".format(self.__title, self.__year, self.__ratio, self.__result, self.__code)
+            return s.encode('ascii', 'backslashreplace')
+        
+        def __str__(self):
+            s = u"Title: {0}, Year: {1}, Ratio: {2} Result: {3}, Code: {4}".format(self.__title, self.__year, self.__ratio, self.__result, self.__code)
+            return s.encode('ascii', 'backslashreplace')
+        
         def get_result(self):
             return self.__result
 
@@ -240,14 +237,10 @@ class IMDBhelper:
     def getMovieCodeByAPI(self, mTitle, mYear):
 
         findList = []
-
-        sUrlAdd = urllib.urlencode({'q': mTitle.encode('utf-8')})
-        urlAdr = self.IMDBbyTitleAPI + sUrlAdd
-
         intento = 0
         while intento < MAX_RETRY:
             try:
-                webResponse = self.webSession.open(urlAdr)
+                webResponse = self.webSession.get(self.IMDBbyTitleAPI, params={'q': mTitle.encode('utf-8')})
                 intento = 99
             except:
                 intento = intento + 1
@@ -255,15 +248,39 @@ class IMDBhelper:
             print("ERROR FOUND: Connection failed at imdb.getMovieCodeByAPI() - " + mTitle + " (" + mYear + ")")
             return self.ImdbFoundMovie(result=self.ImdbFoundMovie.RESULT_BAD_MATCH)
 
-        urlHTML = webResponse.read()
-        # urlHTML = unicode(urlHTML, 'utf-8')
-
+        # urlHTML = webResponse.text
+        
+        # Let's some magic to happen
+        soup = BeautifulSoup(webResponse.text) 
+        urlHTML = soup.get_text()
+        # Magic is done
+        # I will be very glad if someone explain me why does it work
+        
         IMDBfoundAPI = minidom.parseString(urlHTML)
         movies = IMDBfoundAPI.getElementsByTagName("ImdbEntity")
-
+        
         for movie in movies:
             description = movie.getElementsByTagName("Description")
             for a in description:
+                
+                rc = []
+                for node in a:
+                    if node.nodeType == node.TEXT_NODE:
+                        rc.append(node.data)
+                print ''.join(rc)
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
                 if (a.childNodes[0].nodeValue[:4]).isnumeric:
                     # Some times isnumeric is not working ¿unicode type problem?
                     sYear = a.childNodes[0].nodeValue[:4]

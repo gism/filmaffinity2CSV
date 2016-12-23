@@ -1,9 +1,13 @@
-# change values and rename this file to config.py
+# Change values and rename this file to config.py
 fauser = "fauser"
 fapass = "fapass"
+
+# You can find your user_id by checking your ratings URL:
+# http://www.filmaffinity.com/es/userratings.php?user_id=XXXXXXXX
 fauser_id = "fauser_id"
 
-backuptoimdb = True
+# Not working now
+backuptoimdb = False
 
 imdb_user = "imdb_user"
 imdb_password = "imdb_password"
