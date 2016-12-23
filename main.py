@@ -253,6 +253,8 @@ def main():
     # Create a FilmAfinity handler
     fa = faHelper.FAhelper()
     sUser_id = ""
+    sUser= ""
+    sPassword = ""
     try:
         # Configuration file is not mandatory (just to avoid introducing credentials each run)
         import config
@@ -265,6 +267,8 @@ def main():
             sIn = raw_input('Do you know your FilmAffinity User ID? <Y> or <N>:')
         if sIn.lower() == "y":
             sUser_id = raw_input('Introduce user ID:')
+            if sUser_id (sUser_id == "" or (not sUser_id.isdigit())):
+                print("ERROR: Invalid user ID.")
         else:
             sUser = raw_input('Please enter your FilmAffinity USER:')
             #sPassword = raw_input('Please enter your FilmAffinity PASSWORD:')
