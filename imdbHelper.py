@@ -57,15 +57,16 @@ class IMDBhelper:
         while intento < MAX_RETRY:
             try:
                 webResponse = self.webSession.get(self.IMDBurlLogin)
-                intento = MAX_RETRY
+                break
             except:
                 intento = intento + 1
         if intento == MAX_RETRY:
             print("ERROR FOUND: Connection failed at imdbHelper.login()")
         else:
             
-            pattern = re.compile('<a href="(https:\/\/www.imdb.com\/ap\/signin\?[\w\W]+?)"')
             html = webResponse.text
+            pattern = re.compile('<a href="(https:\/\/www.imdb.com\/ap\/signin\?[\w\W]+?)"')
+            
             ulr_imdb_login = pattern.search(html).group(1)
             
             driver = webdriver.Chrome()

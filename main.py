@@ -10,6 +10,11 @@ import threading, Queue
 import re
 import getpass
 
+import sys  
+
+reload(sys)  
+sys.setdefaultencoding('utf8')
+
 class CountingQueue(Queue.Queue):
     def __init__(self, maxsize=0):
         # Queue.Queue.__init__(**locals())
@@ -89,8 +94,12 @@ class FAMovieList:
         for movie in self.__movieTable:
             for a in movie.tabulate1():
                 if a == None: a =""
+                if isinstance(a, int): a = str(a)
+                a = u' '.join((a, "")).encode('utf-8').strip()
                 a = a.replace(";", ",")
-                csv = csv + a + ";"
+                csv = csv + a.encode('utf-8') + ";"
+                #csv = u';'.join((csv, a)).encode('utf-8').strip()
+            #csv = u';'.join((csv, "\n")).encode('utf-8').strip()
             csv = csv + "\n"
             
         csvFile = codecs.open(fileName, "w", "utf_16")
@@ -289,7 +298,6 @@ def main():
     
     fa.getDumpAllVotes()
     fa_movies = fa.getMoviesDumped()
-    match_results = MatchedMoviesList()
     
     try:
         import config
@@ -310,6 +318,7 @@ def main():
             listFaMovies.append(movie)
         tLocal = time.localtime()
         tableFileName = "FA_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".txt"
+        print(tableFileName)
         table_ascii = listFaMovies.saveReport(tableFileName)
         print("FilmAffinity movie list (TXT) saved at: " + tableFileName)
         csvFileName = "FA_" + str(tLocal.tm_year) + "_" + str(tLocal.tm_mon) + "_" + str(tLocal.tm_mday) + '_fauser' + fa.getUserID() + ".csv"
@@ -320,6 +329,7 @@ def main():
     else:
         # Transfer FA votes to IMDB:
         imdb = imdbHelper.IMDBhelper()
+        match_results = MatchedMoviesList()
 
         # Array para las peliculas que presenten peliculas
         imdbNotFound = FAMovieList()
@@ -342,7 +352,6 @@ def main():
         print("--- Total runtime %s seconds ---" % (time.time() - start_time))
 
         try:
-            import config
             sUser = config.imdb_user
             sPassword = config.imdb_password
         except:
