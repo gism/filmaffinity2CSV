@@ -55,11 +55,6 @@ class FAhelper:
     url_film = "http://www.filmaffinity.com/en/film"  # Movie page URL to get detailed info
     url_film_suffix = ".html"  # End of URL for movie page
 
-    urlVotes_prefix = "http://www.filmaffinity.com/en/myvotes.php?p="
-    urlVotes_sufix = "&orderby="
-
-    urlMain = "http://www.filmaffinity.com/en/main.php"
-
     cookiejar = None
     web_session = None
 

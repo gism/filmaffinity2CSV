@@ -17,5 +17,7 @@ If error do on windows cmd line: pip install XXXX (ie. pip install bs4)
 - warnings
 - selenium
 
+Copy chromedriver.exe to you local project folder and solve capchas when required
+
 # Remember:
-You can hardcode your user settings by renaming config.py.example to config.py and updating content.
+No argument pass to main. Change config.py with your filmaffinity user id
