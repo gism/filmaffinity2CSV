@@ -1,16 +1,21 @@
-# filmaffinity2IMDB
-Get filmaffinity voted movies, save them to CSV and post them on IMDB
+# filmaffinity2CSV
+Backup your filmaffinity votes to local file (CSV)
 
 # How to:
-Run main.py using python 2.7 and wait :)
+Run main.py using python 3.x (tested on Python 3.8.5)
 
-When login to IMDB captcha is required. Open captcha url and type text on python.
+# Dependencies:
+If error do on windows cmd line: pip install XXXX (ie. pip install bs4)
+
+- http.cookiejar
+- re
+- threading
+- queue
+- bs4
+- tabulate
+- codecs
+- warnings
+- selenium
 
 # Remember:
 You can hardcode your user settings by renaming config.py.example to config.py and updating content.
-
-# Thanks:
-Thanks to @txemi for improving the code and the project
-(https://github.com/txemi/filmaffinity2IMDB)
-
-There is also a selenium version of fa code that txemi made before knowing about this project and I leave there for reference (faexport_selenium.py)

@@ -1,18 +1,28 @@
-# -*- coding: utf-8 -*-
-
-import threading, Queue
-import sys
+import http.cookiejar
 import re
-import cookielib, urllib, urllib2
+import sys
+import urllib.request
+import time
+import os
+import threading
+import queue
+from urllib.error import HTTPError
+
 from bs4 import BeautifulSoup
+from tabulate import tabulate
+import codecs
+import warnings
 
+from selenium import webdriver
 
-WORKERS = 4  # Mutli-Thread workers
+WORKERS = 4         # Mutli-Thread workers
+MAX_RETRY = 3       # Number of retries for HTML requests
+SLEEP_TIME = 20     # Wait time when robot is detected
 
 
 # From October 12, 2015 to 20151012
-def changeDateString(dateBad):
-    date = dateBad.split(" ")
+def change_date_string(date_bad):
+    date = date_bad.split(" ")
     date[0] = date[0].replace("January", "01")
     date[0] = date[0].replace("February", "02")
     date[0] = date[0].replace("March", "03")
@@ -30,542 +40,686 @@ def changeDateString(dateBad):
     if len(date[1]) == 1:
         date[1] = "0" + date[1]
 
-    dateGood = date[2] + date[0] + date[1]
-    return dateGood
+    date_good = date[2] + date[0] + date[1]
+    return date_good
 
 
 class FAhelper:
     """Clase para ayudar a bajar la informacion de filmaffinity"""
 
     # FA URL set.
-    # urlLogin= "http://www.filmaffinity.com/en/login.php"
-    urlLogin = "https://filmaffinity.com/en/account.ajax.php?action=login"  # New login URL? seems it works
-    urlVotes = "http://www.filmaffinity.com/en/myvotes.php"
+    url_login = "https://filmaffinity.com/en/account.ajax.php?action=login"  # New login URL?
+    url_votes = "http://www.filmaffinity.com/en/myvotes.php"  # URL used to get total votes and pages
+    url_votes_id = "https://www.filmaffinity.com/en/userratings.php?user_id="  # URL to dump user ratings
+    url_votes_id_page_suffix = "&p="  # Prefix for ulr to get specific page
+    url_film = "http://www.filmaffinity.com/en/film"  # Movie page URL to get detailed info
+    url_film_suffix = ".html"  # End of URL for movie page
+
     urlVotes_prefix = "http://www.filmaffinity.com/en/myvotes.php?p="
     urlVotes_sufix = "&orderby="
-    urlVotesID = "https://www.filmaffinity.com/en/userratings.php?user_id="
-    urlVotesIDpageSufix = "&p="
-
-    urlFilm = "http://www.filmaffinity.com/en/film"
-    urlFilmSufix = ".html"
 
     urlMain = "http://www.filmaffinity.com/en/main.php"
 
     cookiejar = None
-    webSession = None
+    web_session = None
 
-    faMovies = []
-    faMoviesFilled = []
+    fa_movies = []
+    fa_movies_filled = []
 
     def __init__(self):
-        self.userName = ""
-        self.userPass = ""
-        self.userId = "0"
+        self.user_name = ""
+        self.user_pass = ""
+        self.user_id = "0"
 
         # Enable cookie support for urllib2
-        self.cookiejar = cookielib.CookieJar()
-        self.webSession = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
+        self.cookiejar = http.cookiejar.CookieJar()
+        self.web_session = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookiejar))
 
-    def setUser(self, userName, userPass):
-        self.userName = userName
-        self.userPass = userPass
+    def get_movies_dumped(self):
+        return self.fa_movies
 
-    def getUser(self):
-        return self.userName, self.userPass
+    def get_filled_movies_dumped(self):
+        return self.fa_movies_filled
 
-    def setUserID(self, userId):
-        self.userId = str(userId)
+    def set_user(self, user_name, user_pass):
+        self.user_name = user_name
+        self.user_pass = user_pass
+
+    def get_user(self):
+        return self.user_name, self.user_pass
+
+    def set_user_id(self, user_id):
+        self.user_id = str(user_id)
 
     # returns value of film affinity user ID
-    def getUserID(self):
-        return self.userId
+    def get_user_id(self):
+        return self.user_id
 
     def login(self):
-        user, password = self.getUser()
+        user, password = self.get_user()
 
-        self.webSession.open(self.urlLogin)
+        self.web_session.open(self.url_login)
 
-        # Post data to Filmaffinity login URL.
-        dataForm = {"postback": 1, "rp": "", "username": user,
-                    "password": password}
-        dataPost = urllib.urlencode(dataForm)
-        request = urllib2.Request(self.urlLogin, dataPost)
-        self.webSession.open(request)  # Our cookiejar automatically receives the cookies, after the request
+        data_form = {"postback": 1, "rp": "", "username": user,
+                     "password": password}
 
-        webResponse = self.webSession.open(self.urlVotes)
+        f = urllib.parse.urlencode(data_form)
+        f = f.encode('utf-8')
+
+        req = urllib.request.Request(self.url_login, f)
+        self.web_session.open(req)  # Our cookiejar automatically receives the cookies, after the request
+
+        # Web to read number of votes
+        web_response = self.web_session.open(self.url_votes)
+
         pattern = re.compile('\?user_id=(\d+)"')
-        match = pattern.search(webResponse.read())
+        match = pattern.search(web_response.read().decode('utf-8'))
 
         if match:
-            userID = match.group(1)
+            user_id = match.group(1)
         else:
             print(
-                "ERROR FOUND: change regular expression at login() for user ID. Probably FA changed web page structure")
+                "ERROR FOUND: change regular expression at FAhelper.login() for user ID. Probably FA changed web page "
+                "structure")
             sys.exit("Error happens, check log.")
 
-        self.userId = userID
+        self.user_id = user_id
 
     # returns 1 when login is succeed
-    def loginSucceed(self):
+    def login_succeed(self):
         return len(self.cookiejar) > 1
-    
-    def getNumVotes(self):
 
-        if self.userId == "0":
+    def get_num_votes(self):
+
+        if self.user_id == "0":
             print("ERROR FOUND: No user id found. Please login or set user id.")
             sys.exit("Error happens, check log.")
-            return
 
-        url = self.urlVotesID + self.userId
-        webResponse = self.webSession.open(url)
-        html = webResponse.read()
-        
-        numPages = 0
-        soupPage = BeautifulSoup(html, 'html.parser')
-        pagesDiv = soupPage.body.findAll('div', attrs={'class': 'pager'})
-        for page in pagesDiv:
+        url = self.url_votes_id + self.user_id
+
+        try:
+            web_response = self.web_session.open(url)
+            html = web_response.read().decode('utf-8')
+
+        except HTTPError as e:
+            self.solve_robot(url)
+
+        num_pages = 0
+        soup_page = BeautifulSoup(html, 'html.parser')
+        pages_div = soup_page.body.findAll('div', attrs={'class': 'pager'})
+        for page in pages_div:
             for link in page.findAll('a'):
-                if (link.string.isnumeric()):
-                    if(int(link.string) > int(numPages)):
-                        numPages = int(link.string)
-        
-        numVotes = 0
-        for div in soupPage.body.findAll('div', attrs={'class': 'number'}):
-            i = div.findAll('i', attrs={'class': 'fa fa-film'})
-            if i != []:
-                if(div.text.replace(",","").isnumeric()):
-                    numVotes = int(div.text.replace(",",""))       
-  
-        return numVotes, numPages
+                if link.string.isnumeric():
+                    if int(link.string) > int(num_pages):
+                        num_pages = int(link.string)
 
-    class FAMovieData:
+        num_votes = 0
+        for div in soup_page.body.findAll('div', attrs={'class': 'number'}):
+            i = div.findAll('i', attrs={'class': 'fa fa-ratings-fa'})
+            if i:
+                if div.text.replace(",", "").isnumeric():
+                    num_votes = int(div.text.replace(",", ""))
 
-        def __init__(self, movieID, movieTitle, movieYear, movieRate, dayYYYYMMDD):
-            self.movieID = movieID
-            self.movieTitle = movieTitle
-            self.movieYear = movieYear
-            self.movieRate = movieRate
-            self.dayYYYYMMDD = dayYYYYMMDD
-                        
-            self.movieFaRate = None
-            self.movieFaVotes = None
-            self.movieCountry = None
-            self.movieDirector = None
-            self.movieCast = None
-            self.movieGenre = None
-            self.movieDuration = None
-            self.movieSynopsis = None
-            
-        def set_movie_details(self, movieFaRate, movieFaVotes, movieCountry, movieDirector, movieCast, movieGenre, movieDuration, movieSynopsis):
-            self.movieFaRate = movieFaRate
-            self.movieFaVotes = movieFaVotes
-            self.movieCountry = movieCountry
-            self.movieDirector = movieDirector
-            self.movieCast = movieCast
-            self.movieGenre = movieGenre
-            self.movieDuration = movieDuration
-            self.movieSynopsis = movieSynopsis
-            
-        def get_id(self):
-            return self.movieID
+        return num_votes, num_pages
 
-        def get_title(self):
-            return self.movieTitle
+    def do_dump_votes_page(self, page):
 
-        def get_year(self):
-            return self.movieYear
-
-        def get_rate(self):
-            return self.movieRate
-
-        def get_rate_dayYYYYMMDD(self):
-            return self.dayYYYYMMDD
-
-        def get_FA_rate(self):
-            return self.movieFaRate
-        
-        def get_FA_votes(self):
-            return self.movieFaVotes
-        
-        def get_country(self):
-            return self.movieCountry
-        
-        def get_director(self):
-            return self.movieDirector
-        
-        def get_cast(self):
-            return self.movieCast
-        
-        def get_genre(self):
-            return self.movieGenre
-            
-        colum_names = ("ID", "Title", "Year", "Vote", "Voted", "FA rate", "FA votes", "Country", "Director", "Cast", "Genre", "Duration", "Synopsis")
-
-        def tabulate1(self):
-            return self.movieID, self.movieTitle, self.movieYear, self.movieRate, self.dayYYYYMMDD, self.movieFaRate, self.movieFaVotes, self.movieCountry, self.movieDirector, self.movieCast, self.movieGenre, self.movieDuration, self.movieSynopsis 
-        
-        def __repr__(self):
-            s = u"<FAMovieData CLASS: Title: {0}, Year: {1}, ID: {2}, Rated: {3} on {4}, FA rate {5}, FA votes {6}, duraion: {7}, Country: {8} Director: {9}, Cast: {10}, Genre: {11}, Synopsis {12}>".format(
-                self.movieTitle, self.movieYear, self.movieID, self.movieRate, self.dayYYYYMMDD, self.movieFaRate, self.movieDuration,
-                self.movieCountry, self.movieDirector, self.movieCast, self.movieGenre, self.movieSynopsis)
-            return s.encode('ascii', 'backslashreplace')
-        
-        def __str__(self):
-            s = u"[Title: {0}, Year: {1}, ID: {2}, Rated: {3} on {4}, FA rate {5}, FA votes {6}, duration: {7}, Country: {8} Director: {9}, Cast: {10}, Genre: {11}, Synopsis {12}]".format(
-                self.movieTitle, self.movieYear, self.movieID, self.movieRate, self.dayYYYYMMDD, self.movieFaRate, self.movieFaVotes, self.movieDuration,
-                self.movieCountry, self.movieDirector, self.movieCast, self.movieGenre, self.movieSynopsis)
-            return s.encode('ascii', 'backslashreplace')
-        
-    def getDumpVotesPage(self, page):
-
-        if self.userId == "0":
+        if self.user_id == "0":
             print("ERROR FOUND: No user id found. Please login or set user id.")
-            sys.exit("Error happens, check log.")
             return
 
-        url = self.urlVotesID + str(self.userId) + self.urlVotesIDpageSufix + str(page)
-        webResponse = self.webSession.open(url)
-        html = webResponse.read()
-        html = unicode(html, 'utf-8')
+        url = self.url_votes_id + str(self.user_id) + self.url_votes_id_page_suffix + str(page)
 
-        #Check if FA has blocked
+        web_response = self.web_session.open(url)
+        html = web_response.read().decode('utf-8')
+        # html = str(html, 'utf-8')
+
+        intento = 0
+
+        # Check if FA has blocked
         if "<title>Too many request</title>" in html:
-            self.solveRobot(url)
-            webResponse = self.webSession.open(url)
+            self.solve_robot(url)
+            web_response = self.web_session.open(url)
+            html = web_response.read().decode('utf-8')
 
-            html = webResponse.read()
-            html = unicode(html, 'utf-8')
-            
-            if webResponse.getcode() != 200:
+            if web_response.getcode() != 200:
                 intento = intento + 1
-                    
-        soupPage = BeautifulSoup(html, 'html.parser')
-        daysDiv = soupPage.body.findAll('div', attrs={'class': 'user-ratings-wrapper'})
-        
-        for dayDiv in daysDiv:
+
+        soup_page = BeautifulSoup(html, 'html.parser')
+        days_div = soup_page.body.findAll('div', attrs={'class': 'user-ratings-wrapper'})
+
+        num_movies_at_page = 0
+
+        for day_div in days_div:
 
             # Get day when the vote was done:
-            day = dayDiv.find('div', attrs={'class': 'user-ratings-header'})
-            dayBadFormat = day.text.replace("Rated on ", "")
-            dayYYYYMMDD = changeDateString(dayBadFormat)
+            day = day_div.find('div', attrs={'class': 'user-ratings-header'})
+            day_bad_format = day.text.replace("Rated on ", "")
+            day_yyyymmdd = change_date_string(day_bad_format)
 
             # Each day may have more than one movie:
-            rates = dayDiv.findAll('div', attrs={'class': 'user-ratings-movie fa-shadow'})
+            rates = day_div.findAll('div', attrs={'class': 'user-ratings-movie fa-shadow'})
             for movie in rates:
-                    
+
                 # Get filmaffinity ID
                 try:
-                    movieID = movie.find('div', attrs={'class': 'movie-card movie-card-1'}).get("data-movie-id")
+                    movie_id = movie.find('div', attrs={'class': 'movie-card movie-card-1'}).get("data-movie-id")
                 except AttributeError:
-                    movieID = "000000"
-                
+                    movie_id = "000000"
+
                 # Get movie personal rate
                 try:
-                    movieRate = movie.find('div', attrs={'class': 'ur-mr-rat'}).text
+                    movie_rate = movie.find('div', attrs={'class': 'ur-mr-rat'}).text
                 except AttributeError:
-                    movieRate = -1
-                
+                    movie_rate = -1
+
                 # Get movie filmaffinity rate
                 try:
-                    movieFaRate = movie.find('div', attrs={'class': 'avgrat-box'}).text
+                    movie_fa_rate = movie.find('div', attrs={'class': 'avgrat-box'}).text
                 except AttributeError:
-                    movieFaRate = -1
-                
+                    movie_fa_rate = -1
+
                 # Get movie filmaffinity votes
                 try:
-                    movieFaVotes = movie.find('div', attrs={'class': 'ratcount-box'}).text
+                    movie_fa_votes = movie.find('div', attrs={'class': 'ratcount-box'}).text
                 except AttributeError:
-                    movieFaVotes = -1
-                
+                    movie_fa_votes = -1
+
                 # Get title div
-                titleDiv = movie.find('div', attrs={'class': 'mc-title'})
-                
+                title_div = movie.find('div', attrs={'class': 'mc-title'})
+
                 # But before, get movie country
-                imgDiv = titleDiv.find('img', alt=True)
-                movieCountry = imgDiv['alt']
-                
+                img_div = title_div.find('img', alt=True)
+                movie_country = img_div['alt']
+
                 # Get title div
                 pattern = re.compile('\((\d\d\d\d)\)')
-                match = pattern.search(titleDiv.text)
+                match = pattern.search(title_div.text)
                 if match:
-                    movieYear = match.group(1)
-                    movieTitle = titleDiv.text.replace("(" + movieYear + ")", "").strip()
-                    movieTitle = movieTitle.replace("(TV Series)", "").strip()
-                    movieTitle = movieTitle.replace("(TV)", "").strip()
-                    movieTitle = movieTitle.replace("(S)", "").strip()
+                    movie_year = match.group(1)
+                    movie_title = title_div.text.replace("(" + movie_year + ")", "").strip()
+                    movie_title = movie_title.replace("(TV Series)", "").strip()
+                    movie_title = movie_title.replace("(TV)", "").strip()
+                    movie_title = movie_title.replace("(S)", "").strip()
                 else:
                     print(
-                        "ERROR FOUND: change regular expression at getDumpVotesPage() for movie year. Probably FA changed web page structure")
+                        "ERROR FOUND: change regular expression at FAhelper.do_dump_votes_page() for movie year. "
+                        "Probably FA changed web page structure")
                     sys.exit("Error happens, check log.")
-                    
-                movieResult = self.FAMovieData(movieID=movieID, movieTitle=movieTitle, movieYear=movieYear,
-                                               movieRate=movieRate, dayYYYYMMDD=dayYYYYMMDD)
-                
-                movieResult.set_movie_details(movieFaRate=movieFaRate, movieFaVotes=movieFaVotes, movieCountry=movieCountry, 
-                                              movieDirector = None, movieCast = None, movieGenre = None, movieDuration = None, movieSynopsis = None)
-                
-                self.faMovies.append(movieResult)
-    
-    def solveRobot(self, url):
-        import time
-        import os
-        
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        driver_filename = dir_path + "\chromedriver.exe"
-        
-        from selenium import webdriver
-        from selenium.webdriver.common.keys import Keys
-        driver = webdriver.Chrome(driver_filename)
-        driver.get(url)
-        
-        while(1):
-            time.sleep(10)
-            webResponse = self.webSession.open(url)
-    
-            html = webResponse.read()
-            html = unicode(html, 'utf-8')
-            
-            #Check if FA has blocked
-            if "<title>Too many request</title>" not in html:
-                break
-    
-    def getMovieInfoById(self, film):
-        
-        movieID = film.get_id()
-        
+
+                movie_result = FAMovieData(movie_id=movie_id, movie_title=movie_title, movie_year=movie_year,
+                                                movie_rate=movie_rate, vote_day_yyyymmdd=day_yyyymmdd)
+
+                movie_result.set_movie_details(movie_fa_rate=movie_fa_rate, movie_fa_votes=movie_fa_votes,
+                                               movie_country=movie_country, movie_director=None, movie_cast=None,
+                                               movie_genre=None, movie_duration=None, movie_synopsis=None)
+
+                self.fa_movies.append(movie_result)
+
+                num_movies_at_page = num_movies_at_page + 1
+
+        return page, num_movies_at_page
+
+    def complete_movie_detailed_info(self, movie):
+
+        movie_id = movie.get_id()
+
         found = False
         intento = 0
-        while found == False:
-            if intento < 3:
-                url = self.urlFilm + str(movieID) + self.urlFilmSufix
-                webResponse = self.webSession.open(url)
+        while not found:
+            if intento < MAX_RETRY:
+                movie_url = self.url_film + str(movie_id) + self.url_film_suffix
+                try:
+                    web_response = self.web_session.open(movie_url)
+                    html = web_response.read().decode('utf-8')
 
-                html = webResponse.read()
-                #html = unicode(html, 'utf-8')
-                
-                if webResponse.getcode() != 200:
-                    print(webResponse.getcode())
-                    
+                except HTTPError as e:
+                    self.solve_robot(movie_url)
+
                     intento = intento + 1
                     continue
-                
-                #Check if FA has blocked
-                if "<title>Too many request</title>" in html:
-                    self.solveRobot(url)
-                    webResponse = self.webSession.open(url)
 
-                    html = webResponse.read()
-                    html = unicode(html, 'utf-8')
-                    
-                    if webResponse.getcode() != 200:
+                if web_response.getcode() != 200:
+                    print(web_response.getcode())
+
+                    intento = intento + 1
+                    continue
+
+                # Check if FA has blocked
+                if "<title>Too many request</title>" in html:
+                    self.solve_robot(movie_url)
+                    web_response = self.web_session.open(movie_url)
+
+                    html = web_response.read().decode('utf-8')
+                    if web_response.getcode() != 200:
                         intento = intento + 1
                         continue
-                
-                # Get movie title information  
-                soupPage = BeautifulSoup(html, 'html.parser')
-                titleTag = soupPage.body.find('h1', attrs={'id': 'main-title'})
-                
-                if(titleTag==None):
-                    print(
-                    "ERROR FOUND: change regular expression at getMovieInfoById() for movie title. Probably FA changed web page structure. Movie ID: " + str(
-                        movieID))
+
+                # Get movie title information
+                soup_page = BeautifulSoup(html, 'html.parser')
+                title_tag = soup_page.body.find('h1', attrs={'id': 'main-title'})
+
+                if title_tag is None:
+                    print((
+                            "ERROR FOUND: change regular expression at getMovieInfoById() for movie title. Probably "
+                            "FA changed web page structure. Movie ID: " + str(
+                        movie_id)))
                     intento = intento + 1
                     continue
-                
+
                 else:
-                    movieTitle = titleTag.text
-                    movieTitle = movieTitle.replace("(TV Series)", "").strip()
-                    movieTitle = movieTitle.replace("(TV)", "").strip()
-                    movieTitle = movieTitle.replace("(S)", "").strip()                    
+                    movie_title = title_tag.text
+                    movie_title = movie_title.replace("(TV Series)", "").strip()
+                    movie_title = movie_title.replace("(TV)", "").strip()
+                    movie_title = movie_title.replace("(S)", "").strip()
                     found = True
-                
+
                 # Get movie year information
-                yearTag = soupPage.body.find('dd', attrs={'itemprop': 'datePublished'})
-                
-                if(yearTag==None):
-                    print(
-                        "ERROR FOUND: change regular expression at getMovieInfoById() for movie year. Probably FA changed web page structure. Movie ID: " + str(
-                            movieID))
-                    
+                year_tag = soup_page.body.find('dd', attrs={'itemprop': 'datePublished'})
+
+                if year_tag == None:
+                    print((
+                            "ERROR FOUND: change regular expression at getMovieInfoById() for movie year. Probably FA "
+                            "changed web page structure. Movie ID: " + str(
+                        movie_id)))
                     intento = intento + 1
                     continue
-                
+
                 else:
-                    movieYear = yearTag.text
-                    
+                    movie_year = year_tag.text
+
                 # Get movie country information
-                countryTag = soupPage.body.find('span', attrs={'id': 'country-img'})
-                countryImageTag = countryTag.find('img', alt=True)
-                
-                if((countryTag == None) | (countryImageTag == None)):
-                    print("ERROR FOUND: change regular expression at getMovieInfoById() for movie county. Probably FA changed web page structure. Movie ID: " + str(
-                            movieID))
+                country_tag = soup_page.body.find('span', attrs={'id': 'country-img'})
+                country_image_tag = country_tag.find('img', alt=True)
+
+                if (country_tag is None) | (country_image_tag is None):
+                    print((
+                            "ERROR FOUND: change regular expression at getMovieInfoById() for movie county. Probably "
+                            "FA changed web page structure. Movie ID: " + str(
+                        movie_id)))
                 else:
-                    movieCountry = countryImageTag['alt']
-               
+                    movie_country = country_image_tag['alt']
+
                 # Get movie director information
-                movieDirector = ""
-                directorTag = soupPage.body.find('dd', attrs={'class': 'directors'})
-                
-                if(directorTag==None):
-                    print("ERROR FOUND: change regular expression at getMovieInfoById() for movie director. Probably FA changed web page structure. Movie ID: " + str(
-                                movieID))
-                                    
+                movie_director = ""
+                director_tag = soup_page.body.find('dd', attrs={'class': 'directors'})
+
+                if director_tag is None:
+                    print((
+                            "ERROR FOUND: change regular expression at getMovieInfoById() for movie director. "
+                            "Probably FA changed web page structure. Movie ID: " + str(
+                        movie_id)))
+
                 else:
                     try:
-                        movieDirector = directorTag.text
+                        movie_director = director_tag.text
                     except AttributeError:
-                        movieDirector = ""
-                    
+                        movie_director = ""
+
                     # clean the string
-                    movieDirector = movieDirector.strip()
-                    
-                    while '  ' in movieDirector:
-                        movieDirector = movieDirector.replace('  ', ' ')
-                        movieDirector = movieDirector.replace('\n', '')
-                        movieDirector = movieDirector.replace('\r', '')
-                
+                    movie_director = movie_director.strip()
+
+                    while '  ' in movie_director:
+                        movie_director = movie_director.replace('  ', ' ')
+                        movie_director = movie_director.replace('\n', '')
+                        movie_director = movie_director.replace('\r', '')
+
                 # Get movie cast information
-                castTag = soupPage.body.find('span', attrs={'itemprop': 'actor'})
-                
+                cast_tag = soup_page.body.find('span', attrs={'itemprop': 'actor'})
+
                 try:
-                    movieCast = castTag.parent.text
+                    movie_cast = cast_tag.parent.text
                 except AttributeError:
-                    movieCast = ""
-                                
+                    movie_cast = ""
+
                 # clean the string
-                movieCast = movieCast.strip()
-                while '  ' in movieCast:
-                    movieCast = movieCast.replace('  ', ' ')
-                    movieCast = movieCast.replace('\n', '')
-                    movieCast = movieCast.replace('\r', '')
-                
+                movie_cast = movie_cast.strip()
+                while '  ' in movie_cast:
+                    movie_cast = movie_cast.replace('  ', ' ')
+                    movie_cast = movie_cast.replace('\n', '')
+                    movie_cast = movie_cast.replace('\r', '')
+
                 # Get movie genre infomration
-                genreTags = soupPage.body.find('span', attrs={'itemprop': 'genre'})
-                
+                genre_tags = soup_page.body.find('span', attrs={'itemprop': 'genre'})
+
                 try:
-                    movieGenre = genreTags.parent.text
+                    movie_genre = genre_tags.parent.text
                 except AttributeError:
-                    movieGenre = ""
-                
+                    movie_genre = ""
+
                 # clean the string
-                movieGenre = movieGenre.strip()
-                while '  ' in movieGenre:
-                    movieGenre = movieGenre.replace('  ', ' ')
-                    movieGenre = movieGenre.replace('\n', '')
-                    movieGenre = movieGenre.replace('\r', '')
-                    
+                movie_genre = movie_genre.strip()
+                while '  ' in movie_genre:
+                    movie_genre = movie_genre.replace('  ', ' ')
+                    movie_genre = movie_genre.replace('\n', '')
+                    movie_genre = movie_genre.replace('\r', '')
+
                 # Get movie duration information
-                durationTag = soupPage.body.find('dd', attrs={'itemprop': 'duration'})
+                duration_tag = soup_page.body.find('dd', attrs={'itemprop': 'duration'})
                 try:
-                    movieDuration = durationTag.text
+                    movie_duration = duration_tag.text
                 except AttributeError:
-                    movieDuration = ""
-                
+                    movie_duration = ""
+
                 # Get movie synopsis  information
-                synopsisTag = soupPage.body.find('dd', attrs={'itemprop': 'description'})
+                synopsis_tag = soup_page.body.find('dd', attrs={'itemprop': 'description'})
                 try:
-                    movieSynopsis = synopsisTag.text
-                    movieSynopsis = movieSynopsis.replace('  ', ' ')
-                    movieSynopsis = movieSynopsis.replace('\n', '')
-                    movieSynopsis = movieSynopsis.replace('\r', '')
+                    movie_synopsis = synopsis_tag.text
+                    movie_synopsis = movie_synopsis.replace('  ', ' ')
+                    movie_synopsis = movie_synopsis.replace('\n', '')
+                    movie_synopsis = movie_synopsis.replace('\r', '')
                 except AttributeError:
-                    movieSynopsis = ""
-                
-        movieResult = self.FAMovieData(movieID=movieID, movieTitle=movieTitle, movieYear=movieYear,
-                                               movieRate=film.movieRate, dayYYYYMMDD=film.dayYYYYMMDD)
-        
-        movieResult.set_movie_details(movieFaRate=film.movieFaRate, movieFaVotes=film.movieFaVotes, movieCountry=movieCountry, 
-                                              movieDirector=movieDirector, movieCast=movieCast, movieGenre=movieGenre, movieDuration = movieDuration, movieSynopsis = movieSynopsis)
-        
-        film.set_movie_details(film.movieFaRate, film.movieFaVotes, movieCountry = movieCountry, movieDirector = movieDirector, movieCast = movieCast,
-                                movieGenre = movieGenre, movieDuration = movieDuration, movieSynopsis = movieSynopsis)
-        
-        return movieResult
+                    movie_synopsis = ""
 
-    def getMoviesDumped(self):
-        return self.faMovies
+        movie_result = FAMovieData(movie_id=movie_id,
+                                    movie_title=movie_title,
+                                    movie_year=movie_year,
+                                    movie_rate=movie.get_rate(),
+                                    vote_day_yyyymmdd=movie.get_rate_day_yyyymmdd()
+                                    )
 
-    def getFilledMoviesDumped(self):
-        return self.faMoviesFilled
+        movie_result.set_movie_details(movie_fa_rate=movie.get_fa_rate(),
+                                       movie_fa_votes=movie.get_fa_votes(),
+                                       movie_country=movie_country,
+                                       movie_director=movie_director,
+                                       movie_cast=movie_cast,
+                                       movie_genre=movie_genre,
+                                       movie_duration=movie_duration,
+                                       movie_synopsis=movie_synopsis
+                                       )
 
-    def getDumpAllVotes(self):
-        numVotes, numPages = self.getNumVotes()
-        print("FOUND: {0} movies in {1} pages.".format(numVotes, numPages))
+        movie.set_movie_details(movie.get_fa_rate(),
+                                movie.get_fa_votes(),
+                                movie_country=movie_country,
+                                movie_director=movie_director,
+                                movie_cast=movie_cast,
+                                movie_genre=movie_genre,
+                                movie_duration=movie_duration,
+                                movie_synopsis=movie_synopsis
+                                )
 
-        queue = Queue.Queue()
+        return movie_result
+
+    def get_dump_all_votes(self):
+        num_votes, num_pages = self.get_num_votes()
+
+        num_pages_print = num_pages
+        if num_pages_print == 0:
+            num_pages_print = 1
+        print(("FOUND: {0} movies in {1} pages.".format(num_votes, num_pages_print)))
+
+        # First get all possible information from vote list
+        queue_basic = queue.Queue()
         for i in range(WORKERS):
             # FaVoteDumper(queue, self).start() # start a worker
-            worker = FaVoteDumper(queue, self)
+            worker = FaVotePageDumper(queue_basic, self)
             worker.setDaemon(True)
             worker.start()
 
-        for page in range(1, int(numPages) + 1):
-            queue.put(page)
-            
-        if (int(numPages) == 0):
-            queue.put(1)
+        for page in range(1, int(num_pages) + 1):
+            queue_basic.put(page)
+
+        if int(num_pages) == 0:
+            queue_basic.put(1)
         print("All pages pushed to queue!")
 
         for i in range(WORKERS):
-            queue.put(None)  # add end-of-queue markers
+            queue_basic.put(None)  # add end-of-queue markers
 
         # Wait all threats of queue to finish
-        queue.join()
+        queue_basic.join()
 
-        queueFill = Queue.Queue()
+        queue_fill = queue.Queue()
         for i in range(WORKERS):
             # FaFillInfo(queueFill, self).start() # start a worker
-            worker = FaFillInfo(queueFill, self)
+            worker = FaGetMovieDetails(queue_fill, self)
             worker.setDaemon(True)
             worker.start()
 
-        for movie in self.faMovies:
+        for movie in self.fa_movies:
             # print "Push movie: ", movie[0]
-            queueFill.put(movie)
+            queue_fill.put(movie)
         print("\r\nAll movies pushed to queue to get all movie information.")
 
         for i in range(WORKERS):
-            queueFill.put(None)  # add end-of-queue markers
+            queue_fill.put(None)  # add end-of-queue markers
 
         # Wait all threats of queueFill to finish
-        queueFill.join()
+        queue_fill.join()
+
+    @staticmethod
+    def check_robot_solver_requirements():
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        driver_filename = dir_path + '\chromedriver.exe'
+
+        if os.path.isfile(driver_filename):
+            print('Chromedriver found (OK)')
+        else:
+            warnings.warn("Chromedriver NOT found. Used for solving robot challenge.")
+            warnings.warn('Driver expected path: ' + driver_filename)
+
+    def solve_robot(self, url):
+
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        driver_filename = dir_path + "\chromedriver.exe"
+
+        driver = webdriver.Chrome(driver_filename)
+        driver.get(url)
+
+        warnings.warn("Script on hold: Waiting to solve robot challenge")
+
+        while 1:
+            time.sleep(SLEEP_TIME)
+
+            try:
+                web_response = self.web_session.open(url)
+                html = web_response.read().decode('utf-8')
+
+            except HTTPError as e:
+                continue
+
+            # Check if FA has blocked
+            if "<title>Too many request</title>" not in html:
+                break
 
 
-class FaVoteDumper(threading.Thread):
-    def __init__(self, queue, faHelp):
-        self.__queue = queue
+class FaVotePageDumper(threading.Thread):
+    def __init__(self, pages_queue, fa_handler):
+        self.__pages_queue = pages_queue
         threading.Thread.__init__(self)
-        self.faHelp = faHelp
+        self.fa_handler = fa_handler
 
     def run(self):
         while 1:
-            page = self.__queue.get()
+            page = self.__pages_queue.get()
             if page is None:
-                self.__queue.task_done()
+                self.__pages_queue.task_done()
                 break  # reached end of queue
 
-            self.faHelp.getDumpVotesPage(page)
-            print("Analyzed vote page: " +  str(page))
-            self.__queue.task_done()
+            page, num_movies_at_page = self.fa_handler.do_dump_votes_page(page)
+            print('Analyzed vote page: {0} found {1} movies'.format(page, num_movies_at_page))
+
+            self.__pages_queue.task_done()
 
 
-class FaFillInfo(threading.Thread):
-    def __init__(self, queue, faHelp):
-        self.__queue = queue
+class FaGetMovieDetails(threading.Thread):
+    def __init__(self, movies_queue, fa_handler):
+        self.__movies_queue = movies_queue
         threading.Thread.__init__(self)
-        self.faHelp = faHelp
+        self.fa_handler = fa_handler
 
     def run(self):
         while 1:
-            film = self.__queue.get()
+            film = self.__movies_queue.get()
             if film is None:
-                self.__queue.task_done()
+                self.__movies_queue.task_done()
                 break  # reached end of queue
 
-            filmWithExtraInfo = self.faHelp.getMovieInfoById(film)
+            movie_with_details = self.fa_handler.complete_movie_detailed_info(film)
+            self.fa_handler.fa_movies_filled.append(movie_with_details)
 
-            self.faHelp.faMoviesFilled.append(filmWithExtraInfo)
+            print('FaGetMovieDetails: {0} ({1}) get all data. Remaining: {2}'.format(
+                movie_with_details.get_title(), movie_with_details.get_id(), self.__movies_queue.qsize() - 1))
+            self.__movies_queue.task_done()
 
-            print("[FA get all data] ", filmWithExtraInfo.get_title())
-            self.__queue.task_done()
+
+class FAMovieData:
+
+    def __init__(self, movie_id, movie_title, movie_year, movie_rate, vote_day_yyyymmdd):
+        self.movie_id = movie_id
+        self.movie_title = movie_title
+        self.movie_year = movie_year
+        self.movie_rate = movie_rate
+        self.vote_day_yyyymmdd = vote_day_yyyymmdd
+
+        self.movie_fa_rate = None
+        self.movie_fa_votes = None
+        self.movie_country = None
+        self.movie_director = None
+        self.movie_cast = None
+        self.movie_genre = None
+        self.movie_duration = None
+        self.movie_synopsis = None
+
+    def set_movie_details(self, movie_fa_rate, movie_fa_votes, movie_country, movie_director, movie_cast,
+                          movie_genre, movie_duration, movie_synopsis):
+        self.movie_fa_rate = movie_fa_rate
+        self.movie_fa_votes = movie_fa_votes
+        self.movie_country = movie_country
+        self.movie_director = movie_director
+        self.movie_cast = movie_cast
+        self.movie_genre = movie_genre
+        self.movie_duration = movie_duration
+        self.movie_synopsis = movie_synopsis
+
+    def get_id(self):
+        return self.movie_id
+
+    def get_title(self):
+        return self.movie_title
+
+    def get_year(self):
+        return self.movie_year
+
+    def get_rate(self):
+        return self.movie_rate
+
+    def get_rate_day_yyyymmdd(self):
+        return self.vote_day_yyyymmdd
+
+    def get_fa_rate(self):
+        return self.movie_fa_rate
+
+    def get_fa_votes(self):
+        return self.movie_fa_votes
+
+    def get_country(self):
+        return self.movie_country
+
+    def get_director(self):
+        return self.movie_director
+
+    def get_cast(self):
+        return self.movie_cast
+
+    def get_genre(self):
+        return self.movie_genre
+
+    @staticmethod
+    def get_column_names():
+        column_names = (
+            "ID", "Title", "Year", "Vote", "Voted", "FA rate", "FA votes", "Country", "Director", "Cast", "Genre",
+            "Duration", "Synopsis")
+
+        return column_names
+
+    def tabulate1(self):
+        return self.movie_id, self.movie_title, self.movie_year, self.movie_rate, self.vote_day_yyyymmdd, \
+               self.movie_fa_rate, self.movie_fa_votes, self.movie_country, self.movie_director, self.movie_cast, \
+               self.movie_genre, self.movie_duration, self.movie_synopsis
+
+    def __repr__(self):
+        s = "[FAMovieData CLASS] Title: {0}, Year: {1}, ID: {2}, Rated: {3} on {4}, FA rate {5}, FA votes {6}, " \
+            "duration: {7}, Country: {8} Director: {9}, Cast: {10}, Genre: {11}, Synopsis {12}".format(
+            self.movie_title, self.movie_year, self.movie_id, self.movie_rate, self.vote_day_yyyymmdd,
+            self.movie_fa_rate, self.movie_fa_votes, self.movie_duration, self.movie_country,
+            self.movie_director, self.movie_cast, self.movie_genre, self.movie_synopsis)
+
+        # return s.encode('ascii', 'backslashreplace')  # No idea about original intent of this line
+        return s
+
+    def __str__(self):
+        s = "Title: {0}, Year: {1}, ID: {2}, Rated: {3} on {4}, FA rate {5}, FA votes {6}, duration: {7}, " \
+            "Country: {8} Director: {9}, Cast: {10}, Genre: {11}, Synopsis {12}".format(self.movie_title,
+                                                                                        self.movie_year,
+                                                                                        self.movie_id,
+                                                                                        self.movie_rate,
+                                                                                        self.vote_day_yyyymmdd,
+                                                                                        self.movie_fa_rate,
+                                                                                        self.movie_fa_votes,
+                                                                                        self.movie_duration,
+                                                                                        self.movie_country,
+                                                                                        self.movie_director,
+                                                                                        self.movie_cast,
+                                                                                        self.movie_genre,
+                                                                                        self.movie_synopsis)
+
+        # return s.encode('ascii', 'backslashreplace')  # No idea about original intent of this line
+        return s
+
+
+class FAMovieList:
+    def __init__(self):
+        self.__movie_table = []
+
+    def __len__(self):
+        return len(self.__movie_table)
+
+    def empty(self):
+        return len(self.__movie_table) < 1
+
+    def append(self, movie):
+        assert isinstance(movie, FAMovieData)
+        self.__movie_table.append(movie)
+
+    def save_report(self, file_name):
+        movie_table_tabulated = []
+        for movie in self.__movie_table:
+            assert isinstance(movie, FAMovieData)
+            movie_table_tabulated.append(movie.tabulate1())
+        table_acii = tabulate(movie_table_tabulated,
+                              headers=list(FAMovieData.get_column_names()),
+                              tablefmt='orgtbl')
+
+        table_file = codecs.open(file_name, "w", "utf_16")
+        table_file.write(table_acii)
+        table_file.close()
+
+        return table_acii
+
+    def save_csv(self, file_name):
+
+        csv = ''
+        header = ''
+
+        fields = FAMovieData.get_column_names()
+        for f in fields:
+            header = header + str(f) + ';'
+
+        csv = csv + header + '\n'
+
+        for movie in self.__movie_table:
+            for a in movie.tabulate1():
+                if a is None:
+                    a = ""
+                if isinstance(a, int):
+                    a = str(a)
+                a = a.replace(";", ",")
+                csv = csv + a + ";"
+            csv = csv + "\n"
+
+        csv_file = codecs.open(file_name, "w", "utf_16")
+        csv_file.write(csv)
+        csv_file.close()
+
+        return csv
