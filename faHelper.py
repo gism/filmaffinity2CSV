@@ -620,6 +620,12 @@ class FAMovieData:
     def get_genre(self):
         return self.movie_genre
 
+    def get_duration(self):
+        return self.movie_duration
+
+    def get_synopsis(self):
+        return self.movie_synopsis
+
     @staticmethod
     def get_column_names():
         column_names = (
@@ -682,15 +688,15 @@ class FAMovieList:
         for movie in self.__movie_table:
             assert isinstance(movie, FAMovieData)
             movie_table_tabulated.append(movie.tabulate1())
-        table_acii = tabulate(movie_table_tabulated,
-                              headers=list(FAMovieData.get_column_names()),
-                              tablefmt='orgtbl')
+        table_ascii = tabulate(movie_table_tabulated,
+                               headers=list(FAMovieData.get_column_names()),
+                               tablefmt='orgtbl')
 
         table_file = codecs.open(file_name, "w", "utf_16")
-        table_file.write(table_acii)
+        table_file.write(table_ascii)
         table_file.close()
 
-        return table_acii
+        return table_ascii
 
     def save_csv(self, file_name):
 
