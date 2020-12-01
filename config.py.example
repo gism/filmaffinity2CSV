@@ -7,3 +7,7 @@ fauser_id = "XXXXXXXX"
 # Optional: only if fauser_id is not set
 fauser = "fa_user"
 fapass = "fa_password"
+
+# Only to vote in IMDB (by running test_vote_imdb.py)
+u_imdb = 'imdb_mail'
+p_imdb = 'imdb_pass'
