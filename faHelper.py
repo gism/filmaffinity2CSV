@@ -198,7 +198,7 @@ class FAhelper:
 
                 # Get filmaffinity ID
                 try:
-                    movie_id = movie.find('div', attrs={'class': 'movie-card movie-card-1'}).get("data-movie-id")
+                    movie_id = movie.find('div', attrs={'class': 'movie-card mc-flex movie-card-1'}).get("data-movie-id")
                 except AttributeError:
                     movie_id = "000000"
 
