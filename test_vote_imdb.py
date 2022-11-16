@@ -34,7 +34,7 @@ if last_csv is None:
 
 print("Lastest CSV found: " + last_csv)
 
-f = open(last_csv, "r")
+f = open(last_csv, "r", encoding='utf-16')
 f.readline()
 
 fa_csv_movies = []
@@ -60,7 +60,7 @@ imdb.set_user(config.u_imdb, config.p_imdb)
 movies_with_imdb_codes = []
 
 for movie in fa_csv_movies:
-    # print("Looking for: " + movie.get_title() + " (" + movie.get_year() + ")")
+    print("Looking for: " + movie.get_title() + " (" + movie.get_year() + ")")
     m = imdb.search_movie_id(movie.get_title(), movie.get_year())
     if m.get_id() is None:
         print("ERROR: Movie not found: " + movie.get_title() + " (" + movie.get_year() + ")")

@@ -149,7 +149,7 @@ class ImdbHelper:
         web_response_raw = web_response.read()
         response_html = web_response_raw.decode('utf-8')
 
-        # save_to_file(web_response_raw, "imdb_search_result")
+        # save_to_file(web_response_raw, "imdb_search_result")            # Just for debug. It saves HTML response to file
 
         # Check if IMDB has already redirect to movie
         if url_after_search.find('/title/tt') != -1:
